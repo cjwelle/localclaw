@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# doctor - read-only prerequisite and configuration checks.
+#
+# Makes NO changes. Reports the state of prerequisites, config, permissions,
+# and (if it happens to be running) the local Vault. Exit status is non-zero
+# if any critical check fails, so it is usable in CI and pre-flight.
+#
+# Usage: scripts/doctor
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+. "${SCRIPT_DIR}/lib/common.sh"
+load_stack_config
+
+fail_count=0
+warn_count=0
+
+pass()  { printf '  [PASS] %s\n' "$*"; }
+fault() { printf '  [FAIL] %s\n' "$*"; fail_count=$((fail_count + 1)); }
+note()  { printf '  [WARN] %s\n' "$*"; warn_count=$((warn_count + 1)); }
+head2() { printf '\n== %s ==\n' "$*"; }
+
+printf '%s doctor\n' "${APP_NAME}"
+printf 'repo:      %s\n' "${OSLS_REPO_DIR}"
+printf 'config:    %s\n' "${OSLS_CONFIG_DIR}"
+printf 'state:     %s\n' "${OSLS_STATE_DIR}"
+printf 'workspace: %s\n' "${OSLS_WORKSPACE_DIR}"
+
+head2 "Platform"
+os="$(detect_os)"
+case "${os}" in
+  macos|linux) pass "Operating system: ${os}" ;;
+  *) note "Unrecognised operating system: $(uname -s 2>/dev/null). Only macOS and Linux are supported." ;;
+esac
+bash_major="${BASH_VERSINFO:-0}"
+if [ "${bash_major:-0}" -ge 3 ]; then
+  pass "Bash version: ${BASH_VERSION:-unknown}"
+else
+  fault "Bash 3.2+ required."
+fi
+
+head2 "Required tools"
+for bin in "${VAULT_BIN}" "${AGE_BIN}" "${AGE_KEYGEN_BIN}"; do
+  if have "${bin}"; then pass "found: ${bin} ($(command -v "${bin}"))"
+  else fault "missing: ${bin} (run scripts/install)"; fi
+done
+for bin in tar sqlite3; do
+  if have "${bin}"; then pass "found: ${bin}"
+  else fault "missing: ${bin}"; fi
+done
+if have shasum || have sha256sum; then pass "found: sha256 tool"
+else fault "missing: shasum/sha256sum"; fi
+# OpenClaw is not distributed via package managers; treat absence as a warning.
+if have "${OPENCLAW_BIN}"; then pass "found: ${OPENCLAW_BIN} ($(command -v "${OPENCLAW_BIN}"))"
+else note "missing: ${OPENCLAW_BIN} (install OpenClaw separately; see docs/INSTALL.md)"; fi
+# Port probing tool (optional but recommended).
+if have lsof || have ss || have netstat; then pass "found: port-probe tool (lsof/ss/netstat)"
+else note "no lsof/ss/netstat found; port conflict checks will be skipped at runtime"; fi
+
+head2 "Configuration"
+if [ -r "${OSLS_STACK_CONF}" ]; then pass "stack.conf present"
+else note "stack.conf missing (run scripts/bootstrap): ${OSLS_STACK_CONF}"; fi
+if [ -r "${OSLS_VAULT_HCL}" ]; then pass "rendered vault.hcl present"
+else note "vault.hcl not rendered yet (run scripts/bootstrap)"; fi
+if [ -r "${OSLS_SECRETS_MAP}" ]; then pass "secrets.map present"
+else note "secrets.map missing (run scripts/bootstrap)"; fi
+
+if [ -n "${BACKUP_DIR}" ]; then
+  if ( validate_backup_dir "${BACKUP_DIR}" ) 2>/dev/null; then
+    pass "BACKUP_DIR is a safe path: ${BACKUP_DIR}"
+    [ -d "${BACKUP_DIR}" ] || note "BACKUP_DIR does not exist yet (created on first backup): ${BACKUP_DIR}"
+  else
+    fault "BACKUP_DIR is unsafe or invalid: ${BACKUP_DIR}"
+  fi
+else
+  note "BACKUP_DIR not set; encrypted backups are disabled until you set it in stack.conf"
+fi
+
+if [ -r "${OSLS_AGE_RECIPIENT_FILE}" ]; then
+  if grep -Eq '^age1[0-9a-z]+$' "${OSLS_AGE_RECIPIENT_FILE}"; then
+    pass "age backup recipient (public key) present and well-formed"
+  else
+    fault "age recipient file is malformed: ${OSLS_AGE_RECIPIENT_FILE}"
+  fi
+else
+  note "age backup recipient not configured; backups disabled until set (see scripts/bootstrap)"
+fi
+
+head2 "Permissions"
+for d in "${OSLS_CONFIG_DIR}" "${OSLS_STATE_DIR}"; do
+  if [ -d "${d}" ]; then
+    # shellcheck disable=SC2012 # permissions are the desired ls output
+    perms="$(ls -ld "${d}" | awk '{print $1}')"
+    case "${perms}" in
+      drwx------*) pass "owner-only: ${d} (${perms})" ;;
+      *) note "not owner-only: ${d} (${perms}); bootstrap sets 700" ;;
+    esac
+  else
+    note "not created yet: ${d}"
+  fi
+done
+if [ -f "${OSLS_MEMORY_DB}" ]; then
+  # shellcheck disable=SC2012 # permissions are the desired ls output
+  perms="$(ls -l "${OSLS_MEMORY_DB}" | awk '{print $1}')"
+  case "${perms}" in
+    -rw-------*) pass "owner-only work-memory db (${perms})" ;;
+    *) note "work-memory db is not owner-only (${perms})" ;;
+  esac
+else
+  note "work-memory db not initialized yet (run scripts/bootstrap)"
+fi
+
+head2 "Disk encryption (advisory)"
+case "${os}" in
+  macos)
+    if have fdesetup; then
+      if fdesetup status 2>/dev/null | grep -qi 'On'; then pass "FileVault is On"
+      else note "FileVault appears Off; enable full-disk encryption before storing secrets"; fi
+    else note "cannot check FileVault (fdesetup unavailable)"; fi
+    ;;
+  linux)
+    if have lsblk && lsblk -o TYPE 2>/dev/null | grep -qi crypt; then pass "LUKS/crypt device detected"
+    else note "could not confirm full-disk encryption; enable LUKS before storing secrets"; fi
+    ;;
+esac
+
+head2 "Local Vault (read-only probe)"
+if port_is_listening "${VAULT_PORT}"; then
+  if vault_is_initialized; then pass "Vault initialized"; else note "Vault not initialized (run scripts/vault-bootstrap init)"; fi
+  case "$(vault_is_sealed; echo $?)" in
+    0) note "Vault is sealed (unseal during scripts/work-session)" ;;
+    1) pass "Vault is unsealed" ;;
+    *) note "could not read Vault seal status" ;;
+  esac
+else
+  note "Vault is not running on port ${VAULT_PORT} (start with scripts/vault-start)"
+fi
+
+head2 "Summary"
+printf '  %d failure(s), %d warning(s)\n' "${fail_count}" "${warn_count}"
+[ "${fail_count}" -eq 0 ] || exit 1
+exit 0

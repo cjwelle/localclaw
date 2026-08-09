@@ -1,0 +1,435 @@
+#!/usr/bin/env bash
+# work-session - foreground launcher for a single, self-contained work session.
+#
+# This process OWNS every child it starts (the local Vault server and the
+# foreground OpenClaw gateway) and tears them down on exit. There is no daemon,
+# service, scheduler, or messaging surface: only a loopback gateway and the
+# interactive terminal UI/chat. Close the terminal and the session is over.
+#
+# What it does, in order:
+#   1. Refuse to start if a conflicting listener already holds a stack port.
+#   2. Start the isolated local Vault as an owned child (loopback only).
+#   3. Prompt (hidden) for unseal shares until Vault is unsealed.
+#   4. Log in as the admin userpass user with a hidden password read on stdin.
+#   5. Mint two dedicated, least-privilege, short-lived tokens via the roles
+#      created by scripts/vault-bootstrap: an 'agent-session' token (agent
+#      policy) and a 'backup-session' token (snapshot-only backup policy).
+#   6. Read the mapped provider secrets (config/secrets.map) with the admin
+#      token, then drop the admin token from memory.
+#   7. Inject ONLY the agent token and the provider keys into the foreground
+#      gateway's environment, start it on loopback, and open the TUI.
+#   8. On a CLEAN exit: stop the gateway, take an encrypted backup with the
+#      backup token (while Vault is still up), revoke both session tokens, and
+#      finally stop Vault. Temporary logs are removed.
+#
+# It NEVER: accepts an inherited VAULT_TOKEN, writes any secret to disk/logs/
+# argv, injects the admin/backup token into the gateway, or runs anything
+# unattended. A forced kill (kill -9) or power loss BYPASSES cleanup and thus
+# the exit-time backup; the next start re-checks state.
+#
+# Written to be portable across Bash 3.2 (macOS system Bash) and modern Bash:
+# no associative arrays, no `mapfile`, no Bash 4+ features.
+#
+# Usage:
+#   scripts/work-session               # start a real foreground session
+#   scripts/work-session --force-backup# as above; force a same-day backup on exit
+#   scripts/work-session --dry-run     # validate only; start/stop nothing
+#   scripts/work-session --help
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+. "${SCRIPT_DIR}/lib/common.sh"
+load_stack_config
+
+VAULT_START="${SCRIPT_DIR}/vault-start"
+BACKUP_SCRIPT="${SCRIPT_DIR}/backup"
+
+FORCE_BACKUP=0
+DRY_RUN=0
+
+usage() {
+  cat >&2 <<EOF
+Usage: scripts/work-session [--force-backup|--dry-run]
+
+  (no flags)     Start a real foreground session: own Vault + the loopback
+                 OpenClaw gateway/TUI, then run guarded cleanup on exit.
+  --force-backup Same as above, but force an extra same-day encrypted backup
+                 during exit cleanup (after significant Vault/policy changes).
+  --dry-run      Validate binaries, ports, config, and the backup plan. Starts
+                 no service, mints no token, and reads no secret.
+  --help         Show this help.
+
+Loopback-only. No daemon, scheduler, or messaging channel. A forced kill
+(kill -9) or power loss bypasses cleanup and the exit-time backup.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --force-backup) FORCE_BACKUP=1 ;;
+    --dry-run)      DRY_RUN=1 ;;
+    -h|--help)      usage; exit 0 ;;
+    *) usage; fail "Unknown argument: $1" ;;
+  esac
+  shift
+done
+
+# ---------------------------------------------------------------------------
+# Session-scoped state. Kept at file scope so the cleanup trap can see it.
+# ---------------------------------------------------------------------------
+vault_pid=""
+gateway_pid=""
+tui_pid=""
+guard_pid=""
+session_tmp=""
+admin_token=""
+agent_token=""
+backup_token=""
+session_ready=0
+
+# ---------------------------------------------------------------------------
+# Process helpers.
+# ---------------------------------------------------------------------------
+proc_alive() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
+
+# shellcheck disable=SC2329 # invoked by the cleanup trap
+stop_proc() {
+  local pid="$1" i
+  proc_alive "${pid}" || return 0
+  kill -TERM "${pid}" 2>/dev/null || true
+  i=0
+  while [ "${i}" -lt 40 ]; do
+    proc_alive "${pid}" || { wait "${pid}" 2>/dev/null || true; return 0; }
+    sleep 0.25
+    i=$((i + 1))
+  done
+  kill -KILL "${pid}" 2>/dev/null || true
+  wait "${pid}" 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------
+# Guarded cleanup. Runs on any exit. Order is deliberate: stop the gateway,
+# THEN (on a clean session) back up while Vault is still unsealed, THEN revoke
+# tokens, THEN stop Vault, THEN wipe temp logs and secret variables.
+# ---------------------------------------------------------------------------
+# shellcheck disable=SC2329 # invoked by trap
+cleanup() {
+  trap - EXIT HUP INT TERM
+  printf '\n' >&2
+  info "Stopping work-session..."
+  stop_proc "${tui_pid}"
+  stop_proc "${guard_pid}"
+  stop_proc "${gateway_pid}"
+
+  if [ "${session_ready}" -eq 1 ] && [ -n "${backup_token}" ] && proc_alive "${vault_pid}"; then
+    info "Taking encrypted Vault snapshot backup at session exit..."
+    if [ "${FORCE_BACKUP}" -eq 1 ]; then
+      LOCAL_VAULT_TOKEN="${backup_token}" "${BACKUP_SCRIPT}" --force \
+        || warn "Encrypted Vault backup failed during cleanup (continuing shutdown)."
+    else
+      LOCAL_VAULT_TOKEN="${backup_token}" "${BACKUP_SCRIPT}" \
+        || warn "Encrypted Vault backup failed during cleanup (continuing shutdown)."
+    fi
+  fi
+
+  if [ -n "${agent_token}" ] && proc_alive "${vault_pid}"; then
+    LOCAL_VAULT_TOKEN="${agent_token}" vault_local token revoke -self >/dev/null 2>&1 || true
+  fi
+  if [ -n "${backup_token}" ] && proc_alive "${vault_pid}"; then
+    LOCAL_VAULT_TOKEN="${backup_token}" vault_local token revoke -self >/dev/null 2>&1 || true
+  fi
+
+  stop_proc "${vault_pid}"
+
+  if [ -n "${session_tmp}" ] && [ -d "${session_tmp}" ]; then
+    rm -rf "${session_tmp}"
+  fi
+
+  # Scrub secret-bearing variables from the shell.
+  unset VAULT_TOKEN LOCAL_VAULT_TOKEN admin_token agent_token backup_token
+  admin_token=""; agent_token=""; backup_token=""
+  ok "Vault and the foreground OpenClaw gateway are stopped."
+}
+
+# ---------------------------------------------------------------------------
+# Wait for a child to open <port>, giving up if the child dies first.
+# ---------------------------------------------------------------------------
+wait_for_port() {
+  local port="$1" pid="$2" i=0
+  while [ "${i}" -lt 80 ]; do
+    proc_alive "${pid}" || return 1
+    port_is_listening "${port}" && return 0
+    sleep 0.25
+    i=$((i + 1))
+  done
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# Sleep/suspend guard. If wall-clock jumps far between ticks (laptop sleep),
+# end the session rather than resume an unsealed Vault unattended.
+# ---------------------------------------------------------------------------
+sleep_guard() {
+  local target="$1" prev now
+  prev="$(date +%s)"
+  while kill -0 "${target}" 2>/dev/null; do
+    sleep 5
+    now="$(date +%s)"
+    if [ "$((now - prev))" -gt 30 ]; then
+      warn "Sleep/suspension detected; ending the work session."
+      kill -TERM "${target}" 2>/dev/null || true
+      return 0
+    fi
+    prev="${now}"
+  done
+}
+
+# ---------------------------------------------------------------------------
+# Extract a JSON string field with jq (a documented prerequisite).
+# ---------------------------------------------------------------------------
+json_field() {
+  # json_field <jq-filter>   (reads JSON on stdin)
+  jq -r "$1"
+}
+
+validate_secret_mapping() {
+  local env_name="$1" kv_path="$2" kv_field="$3"
+  printf '%s' "${env_name}" | grep -Eq '^[A-Z_][A-Z0-9_]*$' \
+    || fail "Invalid env var name in secrets.map: ${env_name}"
+  case "${env_name}" in
+    PATH|HOME|SHELL|ENV|BASH_ENV|VAULT_*|LOCAL_VAULT_TOKEN|OSLS_*|LD_*|DYLD_*|NODE_OPTIONS)
+      fail "Reserved environment variable in secrets.map: ${env_name}" ;;
+  esac
+  printf '%s' "${kv_path}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_./-]*$' \
+    || fail "Invalid Vault KV path in secrets.map: ${kv_path}"
+  case "/${kv_path}/" in */../*|*/./*) fail "Unsafe Vault KV path in secrets.map: ${kv_path}" ;; esac
+  printf '%s' "${kv_field}" | grep -Eq '^[A-Za-z0-9_.-]+$' \
+    || fail "Invalid Vault field name in secrets.map: ${kv_field}"
+}
+
+# ===========================================================================
+# Dry run: validate everything we can without starting a service or touching
+# secrets. Safe to run with stub binaries and a throwaway HOME.
+# ===========================================================================
+if [ "${DRY_RUN}" -eq 1 ]; then
+  info "work-session dry run (no service started, no secret read)."
+
+  # Self syntax check.
+  bash -n "$0" || fail "Self syntax check failed."
+
+  # Required tooling.
+  for tool in "${VAULT_BIN}" jq; do
+    have "${tool}" || warn "missing tool: ${tool}"
+  done
+  have "${OPENCLAW_BIN}" || warn "missing: ${OPENCLAW_BIN} (install OpenClaw; see docs/INSTALL.md)"
+  [ -x "${VAULT_START}" ]   || warn "not executable: ${VAULT_START}"
+  [ -x "${BACKUP_SCRIPT}" ] || warn "not executable: ${BACKUP_SCRIPT}"
+
+  # Rendered config present?
+  [ -r "${OSLS_VAULT_HCL}" ] || warn "vault.hcl not rendered (run scripts/bootstrap): ${OSLS_VAULT_HCL}"
+  [ -r "${OSLS_OPENCLAW_JSON}" ] || warn "openclaw.json not rendered (run scripts/bootstrap)"
+
+  # Ports must be free.
+  if port_is_listening "${VAULT_PORT}"; then fail "Port ${VAULT_PORT} (Vault) is already in use."; fi
+  if port_is_listening "${OPENCLAW_PORT}"; then fail "Port ${OPENCLAW_PORT} (gateway) is already in use."; fi
+  ok "Ports ${VAULT_PORT} and ${OPENCLAW_PORT} are free."
+
+  # secrets.map parses (names/paths only).
+  if [ -r "${OSLS_SECRETS_MAP}" ]; then
+    n=0
+    while IFS= read -r line || [ -n "${line}" ]; do
+      case "${line}" in ''|'#'*) continue ;; esac
+      IFS=' ' read -r env_name kv_path kv_field extra <<EOF
+${line}
+EOF
+      [ -n "${env_name}" ] && [ -n "${kv_path}" ] && [ -n "${kv_field}" ] && [ -z "${extra}" ] \
+        || fail "Malformed secrets.map line (need: ENV path field): ${line}"
+      validate_secret_mapping "${env_name}" "${kv_path}" "${kv_field}"
+      n=$((n + 1))
+    done < "${OSLS_SECRETS_MAP}"
+    ok "secrets.map parses (${n} mapping(s))."
+  else
+    warn "secrets.map not present; the gateway would get the agent token but no provider keys."
+  fi
+
+  # Backup plan (validates BACKUP_DIR + recipient without touching Vault), if configured.
+  if [ -n "${BACKUP_DIR}" ]; then
+    if "${BACKUP_SCRIPT}" --dry-run; then ok "backup dry-run passed."; else fail "backup dry-run failed."; fi
+  else
+    warn "BACKUP_DIR not set; exit-time backups are disabled."
+  fi
+
+  ok "Dry run complete. Nothing was started, stopped, minted, or read."
+  exit 0
+fi
+
+# ===========================================================================
+# Real session.
+# ===========================================================================
+
+# Refuse an inherited VAULT_TOKEN up front (belt-and-braces; vault_local also
+# refuses it) and clear any inherited local token.
+if [ -n "${VAULT_TOKEN:-}" ]; then
+  fail "Refusing inherited VAULT_TOKEN. Unset it before starting a session."
+fi
+unset VAULT_TOKEN LOCAL_VAULT_TOKEN
+
+# Required binaries for a real run.
+have "${VAULT_BIN}"    || fail "vault not found: ${VAULT_BIN}. Run scripts/install."
+have jq                || fail "jq not found. Run scripts/install."
+have "${OPENCLAW_BIN}" || fail "openclaw not found: ${OPENCLAW_BIN}. See docs/INSTALL.md (install the extended-stable channel)."
+[ -x "${VAULT_START}" ]   || fail "Missing/inaccessible: ${VAULT_START}"
+[ -x "${BACKUP_SCRIPT}" ] || fail "Missing/inaccessible: ${BACKUP_SCRIPT}"
+[ -r "${OSLS_VAULT_HCL}" ] || fail "Rendered vault.hcl not found. Run scripts/bootstrap first."
+
+# Refuse conflicting listeners (another Vault or gateway must not be running).
+port_is_listening "${VAULT_PORT}"   && fail "Port ${VAULT_PORT} is already in use. Stop the existing local Vault first."
+port_is_listening "${OPENCLAW_PORT}" && fail "Port ${OPENCLAW_PORT} is already in use. Stop the existing OpenClaw gateway first."
+
+umask 077
+ensure_private_dir "${OSLS_STATE_DIR}"
+ensure_private_dir "${OSLS_LOG_DIR}"
+session_tmp="$(make_secure_tmpdir openclaw-work-session)"
+
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# Start the sleep/suspend guard against THIS launcher pid.
+sleep_guard "$$" &
+guard_pid=$!
+
+# --- 1) Start the isolated local Vault as an owned child --------------------
+info "Starting isolated local Vault (loopback) as an owned child..."
+"${VAULT_START}" >"${session_tmp}/vault.log" 2>&1 &
+vault_pid=$!
+wait_for_port "${VAULT_PORT}" "${vault_pid}" || fail "Vault failed to start (see session log; removed on exit)."
+vault_is_initialized || fail "Vault is not initialized. Run scripts/vault-bootstrap init first."
+
+# --- 2) Unseal (hidden prompts) --------------------------------------------
+case "$(vault_is_sealed; echo $?)" in
+  0)
+    info "Vault is sealed. Enter distinct unseal shares (hidden) until it unseals."
+    while :; do
+      case "$(vault_is_sealed; echo $?)" in
+        1) break ;;
+        2) fail "Unable to read Vault seal status." ;;
+      esac
+      share="$(read_secret 'Unseal share (hidden)')"
+      if [ -z "${share}" ]; then
+        warn "An unseal share is required."
+        continue
+      fi
+      if ! printf '%s' "${share}" | vault_local operator unseal - >/dev/null 2>&1; then
+        warn "That share was rejected; try another valid share."
+      fi
+      unset share
+    done
+    ;;
+  1) : ;;  # already unsealed
+  *) fail "Unable to read Vault seal status." ;;
+esac
+ok "Vault is unsealed."
+
+# --- 3) Admin login (hidden password on stdin; -no-store) -------------------
+admin_pw="$(read_secret "Password for admin user '${VAULT_ADMIN_USER}' (hidden)")"
+[ -n "${admin_pw}" ] || fail "No admin password entered."
+login_json="$(printf '%s' "${admin_pw}" | vault_local login \
+  -method=userpass -no-store -format=json \
+  "username=${VAULT_ADMIN_USER}" password=- 2>/dev/null)" \
+  || fail "Admin login failed. Check the username/password and that userpass is configured."
+unset admin_pw
+admin_token="$(printf '%s' "${login_json}" | json_field '.auth.client_token')"
+unset login_json
+[ -n "${admin_token}" ] && [ "${admin_token}" != "null" ] || fail "Admin login returned no token."
+ok "Admin authenticated."
+
+# --- 4) Mint dedicated least-privilege session tokens via roles -------------
+# The roles were created by scripts/vault-bootstrap configure. We request the
+# matching policy explicitly (the role's allowed_policies permits exactly it).
+agent_token="$(LOCAL_VAULT_TOKEN="${admin_token}" vault_local token create \
+  -role="${VAULT_AGENT_ROLE}" -policy="${VAULT_AGENT_POLICY}" -ttl=8h -format=json 2>/dev/null \
+  | json_field '.auth.client_token')" \
+  || fail "Failed to mint the ${VAULT_AGENT_ROLE} token."
+[ -n "${agent_token}" ] && [ "${agent_token}" != "null" ] || fail "Empty ${VAULT_AGENT_ROLE} token."
+
+backup_token="$(LOCAL_VAULT_TOKEN="${admin_token}" vault_local token create \
+  -role="${VAULT_BACKUP_ROLE}" -policy="${VAULT_BACKUP_POLICY}" -ttl=8h -format=json 2>/dev/null \
+  | json_field '.auth.client_token')" \
+  || fail "Failed to mint the ${VAULT_BACKUP_ROLE} token."
+[ -n "${backup_token}" ] && [ "${backup_token}" != "null" ] || fail "Empty ${VAULT_BACKUP_ROLE} token."
+ok "Minted dedicated agent-session and backup-session tokens (least privilege)."
+
+# --- 5) Read mapped provider secrets with the admin token, then drop it -----
+# Values are captured into shell variables only; never written to disk, logs,
+# or argv. We build a single newline-separated NAME=VALUE list (values are
+# validated to contain no newline) to feed the child's environment.
+gw_env_pairs=""
+if [ -r "${OSLS_SECRETS_MAP}" ]; then
+  while IFS= read -r line || [ -n "${line}" ]; do
+    case "${line}" in ''|'#'*) continue ;; esac
+    IFS=' ' read -r env_name kv_path kv_field extra <<EOF
+${line}
+EOF
+    [ -n "${env_name}" ] && [ -n "${kv_path}" ] && [ -n "${kv_field}" ] && [ -z "${extra}" ] \
+      || fail "Malformed secrets.map line (need: ENV path field): ${line}"
+    validate_secret_mapping "${env_name}" "${kv_path}" "${kv_field}"
+    val="$(LOCAL_VAULT_TOKEN="${admin_token}" vault_local kv get \
+      -field="${kv_field}" "${VAULT_KV_MOUNT}/${kv_path}" 2>/dev/null)" \
+      || fail "Unable to read ${VAULT_KV_MOUNT}/${kv_path} field '${kv_field}' from Vault."
+    case "${val}" in
+      '' ) fail "Secret ${VAULT_KV_MOUNT}/${kv_path} field '${kv_field}' is empty." ;;
+      *$'\n'*|*$'\r'* ) fail "Secret ${VAULT_KV_MOUNT}/${kv_path} field '${kv_field}' contains a newline (unsupported)." ;;
+    esac
+    gw_env_pairs="${gw_env_pairs}${env_name}=${val}
+"
+    unset val
+  done < "${OSLS_SECRETS_MAP}"
+fi
+# The role tokens are orphan tokens, so revoke the temporary parent login now.
+LOCAL_VAULT_TOKEN="${admin_token}" vault_local token revoke -self >/dev/null 2>&1 \
+  || warn "Unable to revoke the temporary admin login token; it will expire at its short TTL."
+unset admin_token
+admin_token=""
+
+# --- 6) Start the foreground gateway with ONLY the agent token + keys -------
+info "Starting the foreground OpenClaw gateway (loopback only)..."
+# Assemble the child environment inside a subshell so the launcher's own
+# environment is never polluted with provider keys or the token: everything
+# exported below leaves with that subshell when it execs the gateway.
+(
+  export LOCAL_VAULT_TOKEN="${agent_token}"
+  export OPENCLAW_CONFIG_PATH="${OSLS_OPENCLAW_JSON}"
+  export OPENCLAW_STATE_DIR="${OSLS_OPENCLAW_STATE_DIR}"
+  # A here-doc (not a pipe) keeps the loop in this subshell so exports persist.
+  while IFS= read -r _pair; do
+    [ -n "${_pair}" ] || continue
+    _n="${_pair%%=*}"; _v="${_pair#*=}"
+    export "${_n}=${_v}"
+  done <<EOF
+${gw_env_pairs}
+EOF
+  exec "${OPENCLAW_BIN}" --profile "${OPENCLAW_PROFILE}" gateway run \
+    --bind loopback --port "${OPENCLAW_PORT}"
+) >"${session_tmp}/gateway.log" 2>&1 &
+gateway_pid=$!
+# The provider values have been handed to the child; drop them from the launcher.
+unset gw_env_pairs
+wait_for_port "${OPENCLAW_PORT}" "${gateway_pid}" || fail "OpenClaw gateway failed to start (see session log; removed on exit)."
+ok "Gateway is up on 127.0.0.1:${OPENCLAW_PORT}."
+
+# --- 7) Open the interactive terminal UI ------------------------------------
+# Mark the session ready so the exit path runs a backup. Only the TUI/chat
+# surface is exposed; there is no messaging channel.
+session_ready=1
+info "Opening the OpenClaw terminal UI. Exit it (/exit, Ctrl-D, or double Ctrl-C) to end the session."
+OPENCLAW_CONFIG_PATH="${OSLS_OPENCLAW_JSON}" \
+OPENCLAW_STATE_DIR="${OSLS_OPENCLAW_STATE_DIR}" \
+  "${OPENCLAW_BIN}" --profile "${OPENCLAW_PROFILE}" tui </dev/tty &
+tui_pid=$!
+wait "${tui_pid}"
+tui_status=$?
+tui_pid=""
+exit "${tui_status}"

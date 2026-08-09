@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+# install - platform-aware prerequisite installer for the local stack.
+#
+# SAFE BY DEFAULT. With no flags this script only PLANS: it detects your OS,
+# checks which prerequisites are already present, and PRINTS the exact package
+# manager commands it would run. It changes nothing until you pass --apply.
+#
+# It never pipes a network download into a shell (no `curl | sh`). On Debian/
+# Ubuntu it adds HashiCorp's apt repository the documented way (fetch the GPG
+# key to a keyring file, then apt-get install); every privileged step is shown
+# first and only executed under --apply with a typed confirmation.
+#
+# It installs package-manager software:
+#   vault, sqlite3, age/age-keygen, jq, git, curl, tmux, tar, node/npm,
+#   and (optionally) shellcheck.
+# It then installs OpenClaw's official npm package from the `extended-stable`
+# dist-tag. It does NOT start any service, register a
+# scheduler, initialize git, or touch your credentials.
+#
+# Usage:
+#   scripts/install               # plan only (default): print what it would do
+#   scripts/install --apply       # actually install, after a typed confirmation
+#   scripts/install --help
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+. "${SCRIPT_DIR}/lib/common.sh"
+load_stack_config
+
+APPLY=0
+any=0   # set to 1 whenever a plan step proposes an install
+confirmed=0
+
+usage() {
+  cat >&2 <<EOF
+Usage: scripts/install [--apply]
+
+  (no flags)   Plan only. Detect OS, report present/missing tools, and print
+               the exact commands that --apply would run. Makes no changes.
+  --apply      Run the install commands for missing tools after you type a
+               confirmation. Never pipes downloads into a shell.
+  --help       Show this help.
+
+Manages: vault, sqlite3, age, jq, git, curl, tmux, tar, node/npm, optional
+shellcheck, and OpenClaw's official npm extended-stable package.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --apply) APPLY=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage; fail "Unknown argument: $1" ;;
+  esac
+  shift
+done
+
+os="$(detect_os)"
+info "Detected operating system: ${os}"
+if [ "${APPLY}" -eq 1 ]; then
+  info "Mode: APPLY (commands will run after confirmation)."
+else
+  info "Mode: PLAN (no changes will be made). Re-run with --apply to install."
+fi
+
+# A tool is "needed" only if its binary is not already on PATH.
+need_tool() { have "$1" && return 1 || return 0; }
+
+# Print a command plan line; run it only under --apply.
+run_step() {
+  # run_step "<human description>" cmd arg...
+  local desc="$1"; shift
+  printf '    $ %s\n' "$*" >&2
+  if [ "${APPLY}" -eq 1 ]; then
+    "$@" || fail "Step failed: ${desc}"
+  fi
+}
+
+confirm_apply() {
+  [ "${APPLY}" -eq 1 ] || return 0
+  [ "${confirmed}" -eq 0 ] || return 0
+  warn "About to install software with your system package manager (may require sudo)."
+  require_typed_confirmation "INSTALL" "Type INSTALL to proceed"
+  confirmed=1
+}
+
+# ---------------------------------------------------------------------------
+# OpenClaw npm install (shared by both platforms). It runs only after the same
+# explicit INSTALL confirmation used for system packages.
+# ---------------------------------------------------------------------------
+plan_openclaw() {
+  printf '\n== OpenClaw (official npm package) ==\n' >&2
+  if have "${OPENCLAW_BIN}"; then
+    ok "openclaw: present ($(command -v "${OPENCLAW_BIN}"))"
+    return 0
+  fi
+  any=1
+  warn "openclaw: MISSING. It will be installed from npm after Node/npm is ready."
+  # Pin the 'extended-stable' release channel by default for stability, not the
+  # rolling '@latest' tag. Operators who want a different channel may override
+  # it explicitly (see https://docs.openclaw.ai/install/development-channels).
+  printf '    $ npm install -g openclaw@extended-stable\n' >&2
+  info "This pins the 'extended-stable' channel for stability (not @latest)."
+  info "To move channels later:  openclaw update --channel extended-stable"
+  info "Channels are documented at https://docs.openclaw.ai/install/development-channels"
+  warn "Do NOT curl-pipe an install script. Review any installer before running it."
+  if [ "${APPLY}" -eq 1 ]; then
+    have npm || fail "npm is still unavailable after dependency installation. Install Node/npm and retry."
+    confirm_apply
+    run_step "install OpenClaw extended-stable" npm install -g openclaw@extended-stable
+    have "${OPENCLAW_BIN}" || fail "npm completed but '${OPENCLAW_BIN}' is not on PATH. Check your npm global prefix."
+  fi
+  warn "Keep sessions FOREGROUND-only (no gateway service)."
+}
+
+# ===========================================================================
+# macOS (Homebrew)
+# ===========================================================================
+
+# plan_brew <bin> <formula> <label> <required:1|optional:0>
+plan_brew() {
+  local bin="$1" formula="$2" label="$3" required="$4"
+  if ! need_tool "${bin}"; then
+    ok "${label}: present ($(command -v "${bin}"))"
+    return 0
+  fi
+  any=1
+  if [ "${required}" -eq 1 ]; then
+    info "${label}: MISSING -> will install '${formula}'"
+    confirm_apply
+    run_step "install ${formula}" brew install "${formula}"
+  else
+    info "${label}: MISSING (optional) -> would install '${formula}'"
+    if [ "${APPLY}" -eq 1 ]; then
+      confirm_apply
+      run_step "install ${formula}" brew install "${formula}"
+    else
+      printf '    $ brew install %s   # optional\n' "${formula}" >&2
+    fi
+  fi
+}
+
+plan_macos() {
+  have brew || fail "Homebrew (brew) is required on macOS but was not found. Install it from https://brew.sh/ first (review the instructions yourself; this script will not curl-pipe a shell)."
+
+  printf '\n== macOS (Homebrew) plan ==\n' >&2
+
+  # Vault comes from the HashiCorp tap, not a plain formula.
+  if need_tool vault; then
+    any=1
+    info "vault: MISSING -> will install from the hashicorp/tap"
+    confirm_apply
+    run_step "tap hashicorp/tap"  brew tap hashicorp/tap
+    run_step "install vault"      brew install hashicorp/tap/vault
+  else
+    ok "vault: present ($(command -v vault))"
+  fi
+
+  # 'age' provides both age and age-keygen.
+  if need_tool age || need_tool age-keygen; then
+    any=1
+    info "age/age-keygen: MISSING -> will install 'age' (provides both)"
+    confirm_apply
+    run_step "install age"        brew install age
+  else
+    ok "age/age-keygen: present"
+  fi
+
+  # 'node' provides node and npm (needed to install OpenClaw yourself).
+  plan_brew node     node   "node/npm" 1
+  plan_brew sqlite3  sqlite "sqlite3"  1
+  plan_brew jq       jq     "jq"       1
+  plan_brew git      git    "git"      1
+  plan_brew curl     curl   "curl"     1
+  plan_brew tmux     tmux   "tmux"     1
+  # tar ships with macOS; only note if somehow absent.
+  if need_tool tar; then plan_brew tar gnu-tar "tar" 1; else ok "tar: present"; fi
+
+  # ShellCheck is only for contributors.
+  plan_brew shellcheck shellcheck "shellcheck" 0
+
+  [ "${any}" -eq 1 ] || ok "All required Homebrew packages already present."
+  warn "Do NOT register Vault as a service. This stack runs Vault in the foreground only."
+}
+
+# ===========================================================================
+# Debian / Ubuntu (apt)
+# ===========================================================================
+plan_debian() {
+  have apt-get || fail "apt-get is required on Debian/Ubuntu but was not found."
+
+  local keyring="/usr/share/keyrings/hashicorp-archive-keyring.gpg"
+  printf '\n== Debian/Ubuntu (apt) plan ==\n' >&2
+
+  local need_vault=0
+  need_tool vault && need_vault=1
+
+  if [ "${need_vault}" -eq 1 ]; then
+    any=1
+    info "vault: MISSING -> will add HashiCorp's apt repository, then install"
+    warn "The GPG key is fetched to a keyring file with curl+gpg (NOT piped to a shell)."
+    printf '    $ sudo apt-get update\n' >&2
+    printf '    $ sudo apt-get install -y gpg curl lsb-release ca-certificates\n' >&2
+    printf '    $ curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o %s\n' "${keyring}" >&2
+    printf '    $ echo "deb [signed-by=%s] https://apt.releases.hashicorp.com <codename> main" | sudo tee /etc/apt/sources.list.d/hashicorp.list\n' "${keyring}" >&2
+  else
+    ok "vault: present ($(command -v vault))"
+  fi
+
+  # Distro packages. Note the bin->package mapping: node/npm come from
+  # 'nodejs' + 'npm'; everything else maps to a like-named package.
+  local pkgs="" t
+  need_tool node && pkgs="${pkgs} nodejs"
+  need_tool npm  && pkgs="${pkgs} npm"
+  for t in sqlite3 jq git curl tmux age tar; do
+    if need_tool "${t}"; then pkgs="${pkgs} ${t}"; fi
+  done
+
+  if [ -n "${pkgs}" ]; then
+    any=1
+    info "distro packages to install:${pkgs}"
+    printf '    $ sudo apt-get update\n' >&2
+    # shellcheck disable=SC2086
+    printf '    $ sudo apt-get install -y%s\n' "${pkgs}" >&2
+  else
+    ok "node/npm, sqlite3, jq, git, curl, tmux, age, tar: present"
+  fi
+
+  if need_tool shellcheck; then
+    printf '    $ sudo apt-get install -y shellcheck   # optional, for contributors\n' >&2
+  else
+    ok "shellcheck: present (optional)"
+  fi
+
+  if [ "${APPLY}" -eq 1 ]; then
+    confirm_apply
+    run_step "apt-get update (prereqs)"  sudo apt-get update
+    run_step "install apt prereqs"       sudo apt-get install -y gpg curl lsb-release ca-certificates
+    if [ "${need_vault}" -eq 1 ]; then
+      # Fetch key to a keyring file (curl -> gpg --dearmor), never curl | sh.
+      info "Adding HashiCorp GPG key to ${keyring}"
+      curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o "${keyring}" \
+        || fail "Failed to fetch/install HashiCorp GPG key."
+      codename="$(lsb_release -cs 2>/dev/null || echo stable)"
+      printf 'deb [signed-by=%s] https://apt.releases.hashicorp.com %s main\n' "${keyring}" "${codename}" \
+        | sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null \
+        || fail "Failed to add HashiCorp apt source."
+    fi
+    run_step "apt-get update (repos)"    sudo apt-get update
+    # Assemble the final install list from what is still missing.
+    install_list=""
+    [ "${need_vault}" -eq 1 ] && install_list="${install_list} vault"
+    need_tool node && install_list="${install_list} nodejs"
+    need_tool npm  && install_list="${install_list} npm"
+    for t in sqlite3 jq git curl tmux age tar; do
+      need_tool "${t}" && install_list="${install_list} ${t}"
+    done
+    if [ -n "${install_list}" ]; then
+      # shellcheck disable=SC2086
+      run_step "install packages" sudo apt-get install -y ${install_list}
+    fi
+  fi
+
+  warn "Installing the 'vault' apt package may create a systemd unit. This stack does NOT use it."
+  warn "Ensure it is not enabled or running:  sudo systemctl disable --now vault 2>/dev/null || true"
+}
+
+case "${os}" in
+  macos) plan_macos ;;
+  linux) plan_debian ;;
+  *)     fail "Unsupported operating system. Only macOS (Homebrew) and Debian/Ubuntu (apt) are supported." ;;
+esac
+
+plan_openclaw
+
+printf '\n' >&2
+if [ "${APPLY}" -eq 1 ]; then
+  ok "Install steps complete. Run 'scripts/doctor' to verify."
+else
+  info "Plan complete. Nothing was changed. Re-run with --apply to install."
+  info "Then run 'scripts/doctor' to verify, and 'scripts/bootstrap' to set up config/state."
+fi
+exit 0

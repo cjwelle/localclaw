@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# uninstall - remove this stack's GENERATED config/tool files, safely.
+#
+# SAFE BY DEFAULT. With no flags this script only PLANS: it prints exactly what
+# it would remove and what it preserves, and changes nothing. It removes ONLY
+# files this project generates -- the rendered config directory and repo-local
+# backup/rendered leftovers. It NEVER removes package-manager software (vault,
+# age, sqlite3, node, ...) or any shared dependency; those are yours.
+#
+# By default it PRESERVES your data: the Vault Raft storage, the SQLite
+# work-memory database, the runtime home, your workspace, and any backup
+# directory. Deleting local runtime state requires the separate --purge-data
+# flag AND a second exact typed confirmation. Your workspace and your backup
+# directory are NEVER deleted by this script.
+#
+# It does NOT stop processes it did not start. If a local Vault is running it
+# refuses to purge data and asks YOU to stop it first (Ctrl-C the foreground
+# Vault / work-session); it never kills a Vault or gateway process.
+#
+# Usage:
+#   scripts/uninstall                 # plan only (default): show what it would do
+#   scripts/uninstall --apply         # remove generated config after typed confirm
+#   scripts/uninstall --apply --purge-data   # ALSO delete runtime state (2nd confirm)
+#   scripts/uninstall --help
+#
+# Written to be portable across Bash 3.2 (macOS system Bash) and modern Bash:
+# no associative arrays, no `mapfile`, no `eval`.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+. "${SCRIPT_DIR}/lib/common.sh"
+load_stack_config
+
+APPLY=0
+PURGE_DATA=0
+
+usage() {
+  cat >&2 <<EOF
+Usage: scripts/uninstall [--apply] [--purge-data]
+
+  (no flags)     Plan only. Print what would be removed and what is preserved.
+                 Makes no changes.
+  --apply        Remove this stack's GENERATED config/tool files after an exact
+                 typed 'UNINSTALL' confirmation. Preserves Vault data, the
+                 work-memory DB, your workspace, and any backup directory.
+  --purge-data   ALSO delete local runtime state (Vault Raft data, the SQLite
+                 work-memory DB, runtime home, logs). Requires --apply and a
+                 SEPARATE second exact typed 'DELETE DATA' confirmation. Never
+                 deletes your workspace or your backup directory.
+  --help         Show this help.
+
+Never removes package-manager software or shared dependencies, never stops a
+process it did not start, and never touches your backup directory.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --apply)      APPLY=1 ;;
+    --purge-data) PURGE_DATA=1 ;;
+    -h|--help)    usage; exit 0 ;;
+    *) usage; fail "Unknown argument: $1" ;;
+  esac
+  shift
+done
+if [ "${PURGE_DATA}" -eq 1 ] && [ "${APPLY}" -eq 0 ]; then
+  fail "--purge-data also requires --apply (and a second confirmation)."
+fi
+
+# ---------------------------------------------------------------------------
+# Refuse unsafe roots. A removable target must be an absolute path, contain no
+# '..', not be a bare system/home directory, and be a path this project owns
+# (its basename or a parent segment is the app name). This is belt-and-braces
+# against a mis-set XDG variable that could point our removals at something
+# dangerous.
+# ---------------------------------------------------------------------------
+assert_removable() {
+  local path="$1" label="${2:-path}"
+  [ -n "${path}" ] || fail "${label} is empty; refusing to remove."
+  case "${path}" in
+    /*) : ;;
+    *)  fail "${label} is not absolute; refusing to remove: ${path}" ;;
+  esac
+  case "${path}" in
+    */../*|*/..|../*|*..*) fail "${label} contains '..'; refusing to remove: ${path}" ;;
+  esac
+  local forbidden
+  for forbidden in / /bin /sbin /usr /etc /var /opt /boot /dev /proc /sys \
+                   /root /System /Library /Applications /Users /home "${HOME}"; do
+    if [ "${path}" = "${forbidden}" ]; then
+      fail "${label} refuses a dangerous system path: ${path}"
+    fi
+  done
+  # The path must be owned by this project: the app name must appear as a path
+  # segment. Every path we generate lives under .../<APP_NAME>/...
+  case "/${path}/" in
+    *"/${APP_NAME}/"*) : ;;
+    *) fail "${label} is not a ${APP_NAME} path; refusing to remove: ${path}" ;;
+  esac
+}
+
+# Print a plan/removal line. Removes only under --apply; the caller has already
+# asserted the path is safe.
+remove_target() {
+  # remove_target "<description>" <path>
+  local desc="$1" path="$2"
+  if [ ! -e "${path}" ]; then
+    printf '  [skip]   %s (absent): %s\n' "${desc}" "${path}" >&2
+    return 0
+  fi
+  if [ "${APPLY}" -eq 1 ]; then
+    rm -rf "${path}" && printf '  [removed] %s: %s\n' "${desc}" "${path}" >&2
+  else
+    printf '  [plan]   remove %s: %s\n' "${desc}" "${path}" >&2
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Report scope.
+# ---------------------------------------------------------------------------
+info "openclaw-secure-local-stack uninstall"
+if [ "${APPLY}" -eq 1 ]; then
+  info "Mode: APPLY (removals will run after confirmation)."
+else
+  info "Mode: PLAN (no changes). Re-run with --apply to remove."
+fi
+printf '\n' >&2
+
+printf '== Generated config / tool files (removed) ==\n' >&2
+# Assert every config-side root before doing anything with it.
+assert_removable "${OSLS_CONFIG_DIR}" "config directory"
+
+# Individually-named generated files (shown explicitly so the operator sees the
+# specific artifacts), then the whole generated config directory.
+info "The generated config directory contains ONLY project-created files:"
+info "  stack.conf, secrets.map, vault.hcl, openclaw.json,"
+info "  vault-backup-age-recipient (public), vault-backup-last-success, *.bak.*"
+info "It never holds unseal shares, tokens, or the private age identity."
+
+# Repo-local rendered leftovers / template backups (defense in depth; normally
+# these live outside the repo, but scripts/clean and older runs may leave them).
+REPO_CONFIG="${OSLS_REPO_DIR}/config"
+
+if [ "${APPLY}" -eq 1 ]; then
+  warn "About to remove the generated config directory and repo-local backups."
+  warn "Vault data, the work-memory DB, your workspace, and your backups are preserved."
+  require_typed_confirmation "UNINSTALL" "Type UNINSTALL to remove generated config/tool files"
+fi
+
+remove_target "generated config directory" "${OSLS_CONFIG_DIR}"
+
+# Repo-local rendered config + template backups. Remove file-by-file; never the
+# tracked *.example/*.template/*.sample files.
+for leftover in stack.conf vault.hcl openclaw.json secrets.map; do
+  remove_target "repo-local rendered ${leftover}" "${REPO_CONFIG}/${leftover}"
+done
+if [ -d "${REPO_CONFIG}" ]; then
+  for bak in "${REPO_CONFIG}"/*.bak.*; do
+    [ -e "${bak}" ] || continue
+    remove_target "repo-local template backup" "${bak}"
+  done
+fi
+
+# ---------------------------------------------------------------------------
+# Preserved-by-default summary.
+# ---------------------------------------------------------------------------
+printf '\n== Preserved (NOT removed) ==\n' >&2
+info "Vault Raft data:     ${OSLS_VAULT_DATA_DIR}"
+info "Vault runtime home:  ${OSLS_VAULT_HOME}"
+info "Work-memory DB:      ${OSLS_MEMORY_DB}"
+info "Runtime logs:        ${OSLS_LOG_DIR}"
+info "Your workspace:      ${OSLS_WORKSPACE_DIR}   (never removed)"
+if [ -n "${BACKUP_DIR}" ]; then
+  info "Your backups:        ${BACKUP_DIR}   (never removed)"
+else
+  info "Your backups:        (BACKUP_DIR not set)   (never removed)"
+fi
+info "Package-manager software (vault, age, sqlite3, node, ...) is left untouched."
+
+# ---------------------------------------------------------------------------
+# Optional destructive data purge. Separate flag + separate confirmation. Never
+# touches the workspace or the backup directory.
+# ---------------------------------------------------------------------------
+if [ "${PURGE_DATA}" -eq 1 ]; then
+  printf '\n== Runtime state (DELETE requested via --purge-data) ==\n' >&2
+  assert_removable "${OSLS_STATE_DIR}" "state directory"
+
+  # Never stop a process we did not start: if a local Vault is running, refuse
+  # and ask the operator to stop it first.
+  if vault_is_running; then
+    fail "A local Vault appears to be running on $(vault_addr). Stop it yourself (Ctrl-C the foreground Vault/work-session) before purging its data. This script will not stop a process it did not start."
+  fi
+  if port_is_listening "${VAULT_PORT}"; then
+    fail "Something is listening on Vault port ${VAULT_PORT}. Stop it yourself before purging data."
+  fi
+
+  warn "This DELETES local runtime state: Vault Raft storage (you will lose any"
+  warn "Vault data not captured in a backup), the work-memory DB, runtime home,"
+  warn "and logs. Your workspace and your backup directory are NOT touched."
+  warn "Make sure you have a current, restorable backup first."
+  require_typed_confirmation "DELETE DATA" "Type 'DELETE DATA' to delete local runtime state"
+
+  remove_target "Vault Raft data"    "${OSLS_VAULT_DATA_DIR}"
+  remove_target "Vault runtime home" "${OSLS_VAULT_HOME}"
+  remove_target "work-memory DB dir" "$(dirname "${OSLS_MEMORY_DB}")"
+  remove_target "runtime logs"       "${OSLS_LOG_DIR}"
+  remove_target "runtime state directory" "${OSLS_STATE_DIR}"
+else
+  printf '\n' >&2
+  info "Runtime state (Vault data, work-memory DB, logs) is PRESERVED."
+  info "To also delete it: scripts/uninstall --apply --purge-data (second confirmation)."
+fi
+
+printf '\n' >&2
+if [ "${APPLY}" -eq 1 ]; then
+  ok "Uninstall complete."
+  info "Package-manager software was left installed. Remove it yourself if you want:"
+  info "  macOS:  brew uninstall vault age sqlite jq tmux   (only if unused elsewhere)"
+  info "  Debian: sudo apt-get remove vault age sqlite3 jq tmux"
+else
+  info "Plan complete. Nothing was changed. Re-run with --apply to remove."
+fi
+exit 0

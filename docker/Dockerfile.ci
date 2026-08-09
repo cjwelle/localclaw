@@ -1,0 +1,49 @@
+# docker/Dockerfile.ci - Ubuntu test image for openclaw-secure-local-stack.
+#
+# Purpose: a reproducible Linux environment to run the shell test-suite and the
+# shellcheck lint in CI and locally (scripts/ci-local). It installs ONLY the
+# tools the suite exercises. It starts no services and runs as a NON-ROOT user.
+#
+# IMPORTANT: this image is Linux only. Docker cannot run macOS, so there is no
+# macOS image here and we do not fake one. macOS coverage runs on a native
+# GitLab shell runner tagged `macos` and via local `scripts/ci-local native`
+# on a real Mac. See docs/CI-CD.md.
+#
+# The repository is provided at build/run time by the caller (CI mounts it, or
+# `scripts/ci-local` bind-mounts it read-only); nothing is COPYed in here, so a
+# rebuild is only needed when the tool set below changes.
+FROM ubuntu:latest
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# Test/lint prerequisites. `age` provides both `age` and `age-keygen`.
+# --no-install-recommends keeps the image lean; we clean apt lists afterwards.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      bash \
+      coreutils \
+      findutils \
+      grep \
+      sed \
+      gawk \
+      make \
+      git \
+      jq \
+      sqlite3 \
+      age \
+      tar \
+      gzip \
+      ca-certificates \
+      shellcheck \
+ && rm -rf /var/lib/apt/lists/*
+
+# Run as an unprivileged user; the test-suite writes only to a throwaway HOME
+# under /tmp, never to the (read-only) mounted repository.
+RUN useradd --create-home --shell /bin/bash ci
+USER ci
+WORKDIR /work
+
+# Default: run the full suite. `scripts/ci-local` overrides this as needed.
+CMD ["bash", "tests/run.sh"]

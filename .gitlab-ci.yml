@@ -1,0 +1,162 @@
+# .gitlab-ci.yml - CI/CD for openclaw-secure-local-stack.
+#
+# Design constraints (see docs/CI-CD.md):
+#   * Usable on an internal GitLab with only the free tier — no paid services.
+#   * No privileged containers, no `services:` daemons, no Docker-in-Docker.
+#   * Ubuntu (Linux) is tested in an `ubuntu:latest` container; macOS is tested
+#     on a NATIVE shell runner tagged `macos` (Docker cannot run macOS).
+#   * A release happens ONLY on a tag that matches v<VERSION>, and only after
+#     lint, the secret scan, the Ubuntu tests, and the macOS tests pass. CI never
+#     bumps the version or tags anything itself.
+#
+# The container jobs install their few tools inline from the distro so the
+# pipeline needs no prebuilt/pushed image or container registry. The optional
+# prebaked image in docker/Dockerfile.ci can be used instead if you publish it.
+
+stages: [lint, test, security, version, package, release]
+
+# Run for branch pushes, merge requests, and tags; avoid duplicate
+# branch+MR pipelines.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_BRANCH'
+
+# ---------------------------------------------------------------------------
+# Reusable Ubuntu setup. Installs ONLY the tools the suite/lint use. `age`
+# provides both age and age-keygen. No recommends, apt lists cleaned.
+# ---------------------------------------------------------------------------
+.ubuntu:
+  image: ubuntu:latest
+  before_script:
+    - export DEBIAN_FRONTEND=noninteractive
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends
+        bash coreutils findutils grep sed gawk make git jq sqlite3 age tar gzip ca-certificates
+    - bash --version | head -1
+
+# ===========================================================================
+# lint
+# ===========================================================================
+lint:shellcheck:
+  extends: .ubuntu
+  stage: lint
+  before_script:
+    - export DEBIAN_FRONTEND=noninteractive
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends shellcheck make git
+  script:
+    - shellcheck --version | head -1
+    - make check
+
+# ===========================================================================
+# test — Ubuntu (container) and macOS (native shell runner)
+# ===========================================================================
+test:ubuntu:
+  extends: .ubuntu
+  stage: test
+  script:
+    - bash tests/run.sh
+
+# macOS coverage runs the SAME suite natively. It requires a GitLab runner
+# registered with the `macos` tag (a shell executor on a real Mac). Docker
+# cannot run macOS, so there is no container here by design.
+test:macos:
+  stage: test
+  tags: [macos]
+  script:
+    - /bin/bash tests/run.sh
+  rules:
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# ===========================================================================
+# security — self-contained secret scan (always available) + optional gitleaks
+# ===========================================================================
+secret-scan:
+  extends: .ubuntu
+  stage: security
+  script:
+    - |
+      set -eu
+      echo "== Forbidden artifact / secret-shaped content scan =="
+      bad=0
+      for pat in '*.age' '*.tar.gz.age' '*.sqlite' '*.sqlite-wal' '*.sqlite-shm' \
+                 '*.db' '*.agekey' '*age-identity*' '*.pem' '*.key' '*.p12' '*.pfx' \
+                 'root-token*' '*.recovery-keys'; do
+        hits="$(find . -not -path './.git/*' -type f -name "$pat" 2>/dev/null || true)"
+        if [ -n "$hits" ]; then echo "FORBIDDEN artifact ($pat): $hits"; bad=1; fi
+      done
+      for rel in config/stack.conf config/vault.hcl config/openclaw.json config/secrets.map; do
+        if [ -e "$rel" ]; then echo "Rendered runtime config committed: $rel"; bad=1; fi
+      done
+      # High-signal secret material. Exclude tests/ (its scanner names the very
+      # patterns it searches for) and .git. The AGE pattern requires real key
+      # characters after '-1' so this rule text is not itself a match.
+      if grep -rIlE 'AGE-SECRET-KEY-1[A-Z0-9]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|hvs\.[A-Za-z0-9]{8,}' \
+           --exclude-dir=.git --exclude-dir=tests . ; then
+        echo "Secret-shaped content found (see paths above)"; bad=1
+      fi
+      if [ "$bad" -eq 0 ]; then echo "secret scan clean"; else echo "SECRET SCAN FAILED"; exit 1; fi
+
+# Optional deeper scan with a PINNED gitleaks image. Off by default so the
+# pipeline needs no external image pull to be green internally; enable it by
+# setting RUN_GITLEAKS=true (project CI/CD variable). The version is pinned and
+# documented in docs/CI-CD.md.
+secret-scan:gitleaks:
+  stage: security
+  image:
+    name: zricethezav/gitleaks:v8.18.4
+    entrypoint: [""]
+  script:
+    - gitleaks version
+    - gitleaks detect --source . --no-banner --redact --exit-code 1
+  rules:
+    - if: '$RUN_GITLEAKS == "true"'
+
+# ===========================================================================
+# version — validate SemVer (all pipelines); enforce tag==v<VERSION> on tags
+# ===========================================================================
+version:verify:
+  extends: .ubuntu
+  stage: version
+  script:
+    - bash scripts/release verify
+
+# ===========================================================================
+# package — build a versioned tarball + checksums (proves packaging works)
+# ===========================================================================
+package:
+  extends: .ubuntu
+  stage: package
+  script:
+    - make package
+  artifacts:
+    name: "osls-${CI_COMMIT_REF_SLUG}"
+    paths: [dist/]
+    expire_in: 1 week
+
+# ===========================================================================
+# release — TAG-ONLY. Publishes the release artifact + checksums, but only
+# after lint/security/Ubuntu/macOS/version have passed, and only when the tag
+# matches v<VERSION> exactly (re-verified here).
+# ===========================================================================
+release:artifacts:
+  extends: .ubuntu
+  stage: release
+  needs:
+    - job: lint:shellcheck
+    - job: test:ubuntu
+    - job: secret-scan
+    - job: version:verify
+    - job: test:macos
+  script:
+    - bash scripts/release verify          # tag must equal v<VERSION>
+    - make package
+  artifacts:
+    name: "openclaw-secure-local-stack-${CI_COMMIT_TAG}"
+    paths: [dist/]
+  rules:
+    - if: '$CI_COMMIT_TAG'

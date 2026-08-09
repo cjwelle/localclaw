@@ -1,0 +1,40 @@
+# EditorConfig — https://editorconfig.org
+# Consistent whitespace across editors for this repository.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Shell scripts and the shared library.
+[*.{sh,bash}]
+indent_size = 2
+
+# The scripts in scripts/ have no extension; treat them as shell.
+[scripts/**]
+indent_size = 2
+
+# Makefiles require real tabs.
+[Makefile]
+indent_style = tab
+
+# HCL (Vault policies / server config) conventionally uses 2 spaces.
+[*.hcl]
+indent_size = 2
+
+# SQL.
+[*.sql]
+indent_size = 4
+
+# Markdown: keep trailing whitespace off, but do not collapse intentional
+# hard line breaks in tables.
+[*.md]
+trim_trailing_whitespace = false
+
+# Do not reformat the recipient/keep-as-is files.
+[*.gitkeep]
+insert_final_newline = false

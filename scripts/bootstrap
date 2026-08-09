@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+# bootstrap - render user-local config, create owner-only state, init memory DB.
+#
+# Idempotent. Safe to re-run. It:
+#   - creates your XDG config/state/workspace directories with 700 perms,
+#   - seeds stack.conf and secrets.map from the shipped samples (ONLY if they
+#     do not already exist, so your edits are never clobbered),
+#   - renders vault.hcl and openclaw.json from the templates using the values
+#     in your stack.conf (preserving any previous copy as a timestamped .bak),
+#   - initializes the SQLite work-memory database from sql/schema.sql,
+#   - copies the workspace template files that are not already present.
+#
+# It does NOT install software, start Vault, initialize Vault, or handle any
+# secret. Rendered files are written owner-only (umask 077). Nothing is written
+# inside the repository.
+#
+# Usage: scripts/bootstrap [--dry-run]
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+. "${SCRIPT_DIR}/lib/common.sh"
+
+DRY_RUN=0
+case "${1:-}" in
+  ''    ) : ;;
+  --dry-run) DRY_RUN=1 ;;
+  -h|--help)
+    printf 'Usage: scripts/bootstrap [--dry-run]\n' >&2
+    printf '  Render config, create owner-only state, and init the work-memory DB.\n' >&2
+    printf '  --dry-run  Report what would happen and validate config; change nothing.\n' >&2
+    exit 0 ;;
+  *) fail "Unknown argument: ${1}. Usage: scripts/bootstrap [--dry-run]" ;;
+esac
+
+# stack.conf may not exist yet on a first run; loading is a no-op if absent.
+load_stack_config
+
+act() {
+  # act "<description>" cmd args...   -- run unless dry-run.
+  local desc="$1"; shift
+  if [ "${DRY_RUN}" -eq 1 ]; then
+    printf '  [plan] %s\n' "${desc}" >&2
+  else
+    "$@"
+  fi
+}
+
+# --- Directories ------------------------------------------------------------
+info "Bootstrapping ${APP_NAME}"
+info "config:    ${OSLS_CONFIG_DIR}"
+info "state:     ${OSLS_STATE_DIR}"
+info "workspace: ${OSLS_WORKSPACE_DIR}"
+
+for d in \
+  "${OSLS_CONFIG_DIR}" \
+  "${OSLS_STATE_DIR}" \
+  "${OSLS_VAULT_DATA_DIR}" \
+  "${OSLS_VAULT_HOME}" \
+  "${OSLS_OPENCLAW_STATE_DIR}" \
+  "$(dirname "${OSLS_MEMORY_DB}")" \
+  "${OSLS_LOG_DIR}" \
+  "${OSLS_WORKSPACE_DIR}"
+do
+  if [ -d "${d}" ]; then
+    act "ensure owner-only dir (exists): ${d}" ensure_private_dir "${d}"
+  else
+    act "create owner-only dir: ${d}" ensure_private_dir "${d}"
+  fi
+done
+
+umask 077
+
+# --- Seed user-editable config (only if absent) -----------------------------
+# stack.conf and secrets.map are yours to edit; never overwrite them.
+seed_if_absent() {
+  local src="$1" dst="$2"
+  [ -r "${src}" ] || fail "Missing shipped sample: ${src}"
+  if [ -e "${dst}" ]; then
+    ok "keep existing (not overwritten): $(basename "${dst}")"
+    return 0
+  fi
+  act "seed $(basename "${dst}") from $(basename "${src}")" _do_seed "${src}" "${dst}"
+}
+# shellcheck disable=SC2329 # invoked indirectly through act
+_do_seed() {
+  local src="$1" dst="$2"
+  ( umask 077; cp "${src}" "${dst}" )
+  chmod 600 "${dst}" 2>/dev/null || true
+  ok "seeded $(basename "${dst}") (edit it before first use)"
+}
+
+seed_if_absent "${OSLS_REPO_DIR}/config/stack.conf.example" "${OSLS_STACK_CONF}"
+seed_if_absent "${OSLS_REPO_DIR}/config/secrets.map.sample" "${OSLS_SECRETS_MAP}"
+
+# Reload config now that stack.conf is guaranteed to exist (picks up its values
+# for the render below). Harmless in dry-run.
+[ "${DRY_RUN}" -eq 1 ] || load_stack_config
+
+# --- Render generated config (always; previous copy is backed up) -----------
+# vault.hcl and openclaw.json are derived from stack.conf, so they are safe to
+# re-render on every run. render_template preserves any existing file as a
+# timestamped .bak before writing and refuses unresolved @PLACEHOLDERS@.
+render_vault_hcl() {
+  render_template "${OSLS_REPO_DIR}/config/vault.hcl.template" "${OSLS_VAULT_HCL}" \
+    VAULT_HOST "${VAULT_HOST}" \
+    VAULT_PORT "${VAULT_PORT}" \
+    VAULT_CLUSTER_PORT "${VAULT_CLUSTER_PORT}" \
+    VAULT_NODE_ID "${VAULT_NODE_ID}" \
+    VAULT_DATA_DIR "${OSLS_VAULT_DATA_DIR}"
+  chmod 600 "${OSLS_VAULT_HCL}" 2>/dev/null || true
+}
+render_openclaw_json() {
+  render_template "${OSLS_REPO_DIR}/config/openclaw.json.example" "${OSLS_OPENCLAW_JSON}" \
+    OPENCLAW_PORT "${OPENCLAW_PORT}" \
+    WORKSPACE_DIR "${OSLS_WORKSPACE_DIR}"
+  chmod 600 "${OSLS_OPENCLAW_JSON}" 2>/dev/null || true
+}
+
+if [ "${DRY_RUN}" -eq 1 ]; then
+  printf '  [plan] render vault.hcl -> %s\n' "${OSLS_VAULT_HCL}" >&2
+  printf '  [plan] render openclaw.json -> %s\n' "${OSLS_OPENCLAW_JSON}" >&2
+else
+  render_vault_hcl
+  ok "rendered vault.hcl"
+  render_openclaw_json
+  ok "rendered openclaw.json"
+fi
+
+# --- Work-memory database ---------------------------------------------------
+init_memory_db() {
+  local db="${OSLS_MEMORY_DB}" schema="${OSLS_REPO_DIR}/sql/schema.sql"
+  [ -r "${schema}" ] || fail "Missing schema: ${schema}"
+  if ! have sqlite3; then
+    warn "sqlite3 not found; skipping work-memory DB init (run scripts/install, then re-run bootstrap)."
+    return 0
+  fi
+  # schema.sql is written with IF NOT EXISTS / ON CONFLICT, so applying it to an
+  # existing database is a safe no-op that also upgrades a fresh one. Discard
+  # stdout so connection PRAGMAs (journal_mode/busy_timeout) do not echo their
+  # result rows into bootstrap's output.
+  ( umask 077; sqlite3 "${db}" < "${schema}" >/dev/null ) || fail "Failed to initialize work-memory DB: ${db}"
+  chmod 600 "${db}" 2>/dev/null || true
+  if [ -f "${db}" ]; then ok "work-memory DB ready: ${db}"; fi
+}
+
+if [ "${DRY_RUN}" -eq 1 ]; then
+  if have sqlite3; then
+    printf '  [plan] apply sql/schema.sql -> %s\n' "${OSLS_MEMORY_DB}" >&2
+  else
+    printf '  [plan] SKIP DB init (sqlite3 not installed)\n' >&2
+  fi
+else
+  init_memory_db
+fi
+
+# --- Workspace template (copy files that are not already present) -----------
+seed_workspace() {
+  local tmpl="${OSLS_REPO_DIR}/workspace-template"
+  [ -d "${tmpl}" ] || { warn "No workspace-template directory; skipping."; return 0; }
+  # Copy each regular file that does not already exist in the workspace. Never
+  # overwrite an existing workspace file; skip the .gitkeep placeholder.
+  local rel dst src
+  # Use find without -print0 for Bash 3.2 portability; template paths are simple.
+  find "${tmpl}" -type f | while IFS= read -r src; do
+    rel="${src#"${tmpl}"/}"
+    case "${rel}" in */.gitkeep|.gitkeep) continue ;; esac
+    dst="${OSLS_WORKSPACE_DIR}/${rel}"
+    if [ -e "${dst}" ]; then
+      continue
+    fi
+    ( umask 077; mkdir -p "$(dirname "${dst}")" )
+    ( umask 077; cp "${src}" "${dst}" )
+    chmod 600 "${dst}" 2>/dev/null || true
+    ok "workspace: added ${rel}"
+  done
+}
+
+if [ "${DRY_RUN}" -eq 1 ]; then
+  printf '  [plan] copy missing workspace-template files -> %s\n' "${OSLS_WORKSPACE_DIR}" >&2
+else
+  seed_workspace
+fi
+
+printf '\n' >&2
+if [ "${DRY_RUN}" -eq 1 ]; then
+  info "Dry run complete. No changes were made."
+else
+  ok "Bootstrap complete."
+  info "Next: edit ${OSLS_STACK_CONF} (and secrets.map), run scripts/doctor, then"
+  info "start Vault with scripts/vault-start and initialize it with scripts/vault-bootstrap."
+fi
+exit 0

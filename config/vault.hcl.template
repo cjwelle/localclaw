@@ -1,0 +1,27 @@
+# Vault server configuration for the openclaw-secure-local-stack.
+#
+# This is a TEMPLATE. `scripts/bootstrap` renders it into
+#   ${XDG_CONFIG_HOME}/openclaw-secure-local-stack/vault.hcl
+# with the placeholders below replaced by values from your stack.conf.
+#
+# The listener is loopback-only, so TLS is disabled. Do NOT change the
+# listener to a non-loopback address without enabling TLS first.
+
+ui            = true
+disable_mlock = true
+default_lease_ttl = "1h"
+max_lease_ttl     = "8h"
+
+api_addr     = "http://@VAULT_HOST@:@VAULT_PORT@"
+cluster_addr = "https://@VAULT_HOST@:@VAULT_CLUSTER_PORT@"
+
+listener "tcp" {
+  address         = "@VAULT_HOST@:@VAULT_PORT@"
+  cluster_address = "@VAULT_HOST@:@VAULT_CLUSTER_PORT@"
+  tls_disable     = true
+}
+
+storage "raft" {
+  path    = "@VAULT_DATA_DIR@"
+  node_id = "@VAULT_NODE_ID@"
+}

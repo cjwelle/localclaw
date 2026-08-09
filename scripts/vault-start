@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# vault-start - run the isolated local Vault server in the FOREGROUND.
+#
+# This process stays attached to your terminal. Stop it with Ctrl-C. There is
+# no service, launchd/systemd unit, or scheduler. The listener is loopback
+# only (see the rendered vault.hcl).
+#
+# Usage: scripts/vault-start
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+. "${SCRIPT_DIR}/lib/common.sh"
+load_stack_config
+
+[ -r "${OSLS_VAULT_HCL}" ] || fail "Rendered Vault config not found: ${OSLS_VAULT_HCL}. Run scripts/bootstrap first."
+have "${VAULT_BIN}" || fail "vault binary not found: ${VAULT_BIN}. Run scripts/install."
+
+ensure_private_dir "${OSLS_STATE_DIR}"
+ensure_private_dir "${OSLS_VAULT_DATA_DIR}"
+ensure_private_dir "${OSLS_VAULT_HOME}"
+
+# Clear any inherited Vault environment so a corporate config can never leak in.
+unset VAULT_ADDR VAULT_AGENT_ADDR VAULT_NAMESPACE VAULT_TOKEN \
+      VAULT_CACERT VAULT_CAPATH VAULT_CLIENT_CERT VAULT_CLIENT_KEY
+
+umask 077
+info "Starting isolated local Vault on $(vault_addr) (foreground; Ctrl-C to stop)."
+# Isolate token-helper/CLI state from any corporate Vault by pinning HOME.
+export HOME="${OSLS_VAULT_HOME}"
+exec "${VAULT_BIN}" server -config="${OSLS_VAULT_HCL}"

@@ -1,0 +1,343 @@
+#!/usr/bin/env bash
+# vault-bootstrap - operator-driven Vault initialization and least-privilege setup.
+#
+# This script GUIDES you through standing up the local Vault. It deliberately
+# does the least that automation safely can:
+#
+#   * It NEVER runs `vault operator init` for you and never reads its output, so
+#     it can never see, store, or transmit your unseal shares or the initial
+#     root token. The `init` subcommand only prints the exact command for YOU to
+#     run and explains where the resulting material must be kept.
+#   * The `configure` subcommand sets up the KV v2 mount, writes the admin /
+#     agent / backup policies, enables userpass, creates your admin user, and
+#     creates the agent-session and backup-session token roles. It authenticates
+#     with a privileged token that YOU paste at a hidden prompt; the token is
+#     held only in memory and passed to a single command at a time, never as a
+#     CLI argument and never written to disk.
+#   * The `revoke-root` subcommand helps you explicitly revoke the initial root
+#     token once your admin login works. It requires a typed confirmation and,
+#     like everything else, never persists the token.
+#
+# Nothing here writes a secret, token, password, or unseal share to any file.
+#
+# Usage:
+#   scripts/vault-bootstrap init                 # guidance to initialize + unseal (you run it)
+#   scripts/vault-bootstrap configure [--dry-run]# mount + policies + userpass admin + roles
+#   scripts/vault-bootstrap revoke-root [--dry-run] # revoke the initial root token
+#   scripts/vault-bootstrap status               # read-only summary of init/seal/mount state
+#   scripts/vault-bootstrap --help
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+. "${SCRIPT_DIR}/lib/common.sh"
+load_stack_config
+
+DRY_RUN=0
+
+usage() {
+  cat >&2 <<EOF
+Usage: scripts/vault-bootstrap <command> [--dry-run]
+
+Commands:
+  init          Guidance only. Verify Vault is running, then print the exact
+                'vault operator init' and 'vault operator unseal' commands for
+                YOU to run. This script never sees your unseal shares or root
+                token.
+  configure     Set up the KV v2 mount ('${VAULT_KV_MOUNT}'), write the admin/agent/backup
+                policies, enable userpass, create your admin user (hidden
+                password), and create the '${VAULT_AGENT_ROLE}' and
+                '${VAULT_BACKUP_ROLE}' token roles. Prompts once (hidden) for a
+                privileged token. Idempotent.
+  revoke-root   Revoke the initial root token after your admin login works.
+                Prompts (hidden) for the root token and requires you to type
+                REVOKE. The token is never stored.
+  status        Read-only: report Vault reachability, init/seal state, and
+                whether the mount/policies/roles exist.
+
+Options:
+  --dry-run     For 'configure'/'revoke-root': print the plan and make no
+                changes. (Reads Vault state read-only if it is reachable.)
+  -h, --help    Show this help.
+
+This script never persists root tokens, unseal shares, or passwords.
+EOF
+}
+
+CMD="${1:-}"
+case "${CMD}" in
+  ''|-h|--help) usage; [ -z "${CMD}" ] && exit 1 || exit 0 ;;
+esac
+shift || true
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage; fail "Unknown argument: $1" ;;
+  esac
+  shift
+done
+
+# ---------------------------------------------------------------------------
+# Small helpers local to this script.
+# ---------------------------------------------------------------------------
+
+# Prompt (hidden) for a privileged Vault token, validate it against the local
+# instance with a read-only lookup-self, and echo it on stdout for capture by
+# the caller. The value stays in memory only. Fails if the token is empty or
+# does not authenticate.
+prompt_privileged_token() {
+  local tok
+  tok="$(read_secret 'Privileged Vault token (root or admin; input hidden)')"
+  [ -n "${tok}" ] || fail "No token entered."
+  if ! LOCAL_VAULT_TOKEN="${tok}" vault_local token lookup >/dev/null 2>&1; then
+    fail "That token could not authenticate to the local Vault. Aborting (nothing changed)."
+  fi
+  printf '%s' "${tok}"
+}
+
+# Is the KV v2 mount already present at ${VAULT_KV_MOUNT}?
+kv_mount_present() {
+  local tok="$1"
+  LOCAL_VAULT_TOKEN="${tok}" vault_local secrets list -format=json 2>/dev/null \
+    | grep -Eq "\"${VAULT_KV_MOUNT}/\"[[:space:]]*:"
+}
+
+# Is a named auth method enabled at <name>/ ?
+auth_method_present() {
+  local tok="$1" name="$2"
+  LOCAL_VAULT_TOKEN="${tok}" vault_local auth list -format=json 2>/dev/null \
+    | grep -Eq "\"${name}/\"[[:space:]]*:"
+}
+
+# ---------------------------------------------------------------------------
+# init - pure guidance. Never runs init/unseal; never reads their output.
+# ---------------------------------------------------------------------------
+cmd_init() {
+  info "Vault address: $(vault_addr)"
+  if ! port_is_listening "${VAULT_PORT}"; then
+    warn "Vault does not appear to be listening on port ${VAULT_PORT}."
+    warn "Start it first in a dedicated terminal:  scripts/vault-start"
+    fail "Cannot guide initialization until Vault is running."
+  fi
+  if ! vault_is_running; then
+    fail "Vault is on port ${VAULT_PORT} but not responding to status. Check scripts/vault-start."
+  fi
+
+  if vault_is_initialized; then
+    ok "Vault is already initialized."
+    case "$(vault_is_sealed; echo $?)" in
+      0) warn "It is SEALED. Unseal it yourself with ${VAULT_KEY_THRESHOLD} of your shares:"
+         printf '      VAULT_ADDR=%q vault operator unseal   # repeat until unsealed\n' "$(vault_addr)" >&2 ;;
+      1) ok "It is unsealed. Next: run 'scripts/vault-bootstrap configure'." ;;
+      *) warn "Could not read seal status." ;;
+    esac
+    return 0
+  fi
+
+  cat >&2 <<EOF
+
+Vault is running but NOT initialized. You (the operator) initialize it — this
+script never sees the shares or the root token.
+
+  1) Initialize with your chosen share/threshold parameters:
+
+       VAULT_ADDR=$(vault_addr) \\
+         vault operator init -key-shares=${VAULT_KEY_SHARES} -key-threshold=${VAULT_KEY_THRESHOLD}
+
+     Record the ${VAULT_KEY_SHARES} unseal shares and the initial root token in
+     your EXTERNAL secret manager immediately. Do NOT paste them into this repo,
+     the work-memory database, chat, or any file.
+
+  2) Unseal by supplying ${VAULT_KEY_THRESHOLD} distinct shares (hidden input):
+
+       VAULT_ADDR=$(vault_addr) vault operator unseal   # repeat ${VAULT_KEY_THRESHOLD} times
+
+  3) Then set up mount/policies/roles (paste the root token at the hidden prompt):
+
+       scripts/vault-bootstrap configure
+
+  4) Once your admin login works, revoke the initial root token:
+
+       scripts/vault-bootstrap revoke-root
+
+EOF
+  ok "Guidance printed. Nothing was changed."
+}
+
+# ---------------------------------------------------------------------------
+# configure - mount + policies + userpass admin + token roles. Idempotent.
+# ---------------------------------------------------------------------------
+cmd_configure() {
+  local admin_pol="${OSLS_REPO_DIR}/policies/admin.hcl"
+  local agent_pol="${OSLS_REPO_DIR}/policies/agent.hcl"
+  local backup_pol="${OSLS_REPO_DIR}/policies/backup.hcl"
+  local f
+  for f in "${admin_pol}" "${agent_pol}" "${backup_pol}"; do
+    [ -r "${f}" ] || fail "Policy file missing or unreadable: ${f}"
+  done
+
+  info "Vault address: $(vault_addr)"
+  if [ "${DRY_RUN}" -eq 1 ]; then
+    info "Mode: DRY-RUN (no changes; no token prompt)."
+    printf '  [plan] enable KV v2 secrets engine at %s/ (if absent)\n' "${VAULT_KV_MOUNT}" >&2
+    printf '  [plan] write policy %s <- policies/admin.hcl\n' "${VAULT_ADMIN_POLICY}" >&2
+    printf '  [plan] write policy %s <- policies/agent.hcl\n' "${VAULT_AGENT_POLICY}" >&2
+    printf '  [plan] write policy %s <- policies/backup.hcl\n' "${VAULT_BACKUP_POLICY}" >&2
+    printf '  [plan] enable userpass auth method (if absent)\n' >&2
+    printf '  [plan] create/update admin user %q with policy %s (hidden password)\n' "${VAULT_ADMIN_USER}" "${VAULT_ADMIN_POLICY}" >&2
+    printf '  [plan] create token role %s -> policy %s\n' "${VAULT_AGENT_ROLE}" "${VAULT_AGENT_POLICY}" >&2
+    printf '  [plan] create token role %s -> policy %s\n' "${VAULT_BACKUP_ROLE}" "${VAULT_BACKUP_POLICY}" >&2
+    info "Dry run complete. Re-run without --dry-run to apply."
+    return 0
+  fi
+
+  # Refuse to touch an unreachable, uninitialized, or sealed Vault.
+  vault_require_unsealed
+  vault_is_initialized || fail "Vault is not initialized yet. Run 'scripts/vault-bootstrap init' first."
+
+  local tok; tok="$(prompt_privileged_token)"
+  ok "Token authenticated. Proceeding with least-privilege setup."
+
+  # 1) KV v2 mount.
+  if kv_mount_present "${tok}"; then
+    ok "KV mount '${VAULT_KV_MOUNT}/' already present."
+  else
+    info "enabling KV v2 secrets engine at ${VAULT_KV_MOUNT}/"
+    LOCAL_VAULT_TOKEN="${tok}" vault_local secrets enable -path="${VAULT_KV_MOUNT}" -version=2 kv \
+      || fail "Failed to enable KV v2 at ${VAULT_KV_MOUNT}/."
+    ok "enabled KV v2 at ${VAULT_KV_MOUNT}/"
+  fi
+
+  # 2) Policies (write is idempotent: it creates or replaces).
+  LOCAL_VAULT_TOKEN="${tok}" vault_local policy write "${VAULT_ADMIN_POLICY}" "${admin_pol}" \
+    || fail "Failed to write ${VAULT_ADMIN_POLICY} policy."
+  ok "wrote policy: ${VAULT_ADMIN_POLICY}"
+  LOCAL_VAULT_TOKEN="${tok}" vault_local policy write "${VAULT_AGENT_POLICY}" "${agent_pol}" \
+    || fail "Failed to write ${VAULT_AGENT_POLICY} policy."
+  ok "wrote policy: ${VAULT_AGENT_POLICY}"
+  LOCAL_VAULT_TOKEN="${tok}" vault_local policy write "${VAULT_BACKUP_POLICY}" "${backup_pol}" \
+    || fail "Failed to write ${VAULT_BACKUP_POLICY} policy."
+  ok "wrote policy: ${VAULT_BACKUP_POLICY}"
+
+  # 3) userpass auth method.
+  if auth_method_present "${tok}" userpass; then
+    ok "userpass auth method already enabled."
+  else
+    LOCAL_VAULT_TOKEN="${tok}" vault_local auth enable userpass \
+      || fail "Failed to enable userpass auth method."
+    ok "enabled userpass auth method"
+  fi
+
+  # 4) Admin user. The password is read hidden and passed via stdin using the
+  #    Vault CLI's 'field=-' convention, so it never appears in argv.
+  local pw pw2
+  pw="$(read_secret "Set a password for admin user '${VAULT_ADMIN_USER}' (hidden)")"
+  [ -n "${pw}" ] || fail "Empty password; refusing to create a passwordless admin user."
+  pw2="$(read_secret "Confirm password for '${VAULT_ADMIN_USER}' (hidden)")"
+  [ "${pw}" = "${pw2}" ] || fail "Passwords did not match. Aborting (nothing was written for the admin user)."
+  if printf '%s' "${pw}" | LOCAL_VAULT_TOKEN="${tok}" vault_local write \
+        "auth/userpass/users/${VAULT_ADMIN_USER}" \
+        password=- \
+        token_policies="${VAULT_ADMIN_POLICY}" \
+        token_ttl=1h token_max_ttl=8h >/dev/null; then
+    ok "admin user '${VAULT_ADMIN_USER}' created/updated with policy '${VAULT_ADMIN_POLICY}'"
+  else
+    fail "Failed to create/update admin user '${VAULT_ADMIN_USER}'."
+  fi
+  # Drop the password from the shell as soon as we are done with it.
+  pw=""; pw2=""
+
+  # 5) Token roles. 'vault write' on an existing role updates it in place.
+  LOCAL_VAULT_TOKEN="${tok}" vault_local write "auth/token/roles/${VAULT_AGENT_ROLE}" \
+        allowed_policies="${VAULT_AGENT_POLICY}" \
+        disallowed_policies="${VAULT_ADMIN_POLICY},${VAULT_BACKUP_POLICY}" \
+        orphan=true renewable=true token_type=service \
+        token_ttl=1h token_max_ttl=8h >/dev/null \
+    || fail "Failed to create token role ${VAULT_AGENT_ROLE}."
+  ok "token role ready: ${VAULT_AGENT_ROLE} -> ${VAULT_AGENT_POLICY}"
+
+  # The backup token is minted at session start but used at session EXIT (after
+  # the gateway stops), which can be hours later. Its TTL must therefore span a
+  # full session, so it is not tighter than the agent token's 8h ceiling.
+  LOCAL_VAULT_TOKEN="${tok}" vault_local write "auth/token/roles/${VAULT_BACKUP_ROLE}" \
+        allowed_policies="${VAULT_BACKUP_POLICY}" \
+        disallowed_policies="${VAULT_ADMIN_POLICY},${VAULT_AGENT_POLICY}" \
+        orphan=true renewable=false token_type=service \
+        token_ttl=8h token_max_ttl=8h >/dev/null \
+    || fail "Failed to create token role ${VAULT_BACKUP_ROLE}."
+  ok "token role ready: ${VAULT_BACKUP_ROLE} -> ${VAULT_BACKUP_POLICY}"
+
+  # Release the privileged token reference.
+  tok=""
+  printf '\n' >&2
+  ok "Configure complete."
+  info "Verify your admin login works:"
+  printf '      VAULT_ADDR=%q vault login -method=userpass username=%q\n' "$(vault_addr)" "${VAULT_ADMIN_USER}" >&2
+  info "Then revoke the initial root token:  scripts/vault-bootstrap revoke-root"
+}
+
+# ---------------------------------------------------------------------------
+# revoke-root - explicit, confirmed revocation of the initial root token.
+# ---------------------------------------------------------------------------
+cmd_revoke_root() {
+  info "Vault address: $(vault_addr)"
+  if [ "${DRY_RUN}" -eq 1 ]; then
+    info "Mode: DRY-RUN. Would prompt (hidden) for the root token, require you to"
+    info "type REVOKE, then run 'vault token revoke -self' with that token."
+    info "No token would be stored. Re-run without --dry-run to actually revoke."
+    return 0
+  fi
+
+  vault_require_unsealed
+  warn "This revokes the INITIAL ROOT TOKEN. Make sure your admin (userpass)"
+  warn "login already works and your unseal shares are safely in custody."
+  warn "Root capabilities will be gone; you keep admin + your unseal shares."
+
+  local tok
+  tok="$(read_secret 'Initial root token to revoke (input hidden)')"
+  [ -n "${tok}" ] || fail "No token entered."
+  if ! LOCAL_VAULT_TOKEN="${tok}" vault_local token lookup >/dev/null 2>&1; then
+    fail "That token could not authenticate; nothing was revoked."
+  fi
+
+  require_typed_confirmation "REVOKE" "Type REVOKE to revoke this token"
+
+  if LOCAL_VAULT_TOKEN="${tok}" vault_local token revoke -self >/dev/null 2>&1; then
+    tok=""
+    ok "Root token revoked. It was never written to disk."
+    info "Confirm it no longer works (should fail):"
+    printf '      VAULT_ADDR=%q VAULT_TOKEN=<the-old-root> vault token lookup\n' "$(vault_addr)" >&2
+  else
+    tok=""
+    fail "Revocation call failed. Re-check Vault status and try again."
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# status - read-only summary. Never prompts, never changes anything.
+# ---------------------------------------------------------------------------
+cmd_status() {
+  info "Vault address: $(vault_addr)"
+  if ! port_is_listening "${VAULT_PORT}"; then
+    warn "Vault not listening on port ${VAULT_PORT} (start with scripts/vault-start)."
+    return 0
+  fi
+  if vault_is_initialized; then ok "initialized: yes"; else warn "initialized: no (run 'vault-bootstrap init')"; fi
+  case "$(vault_is_sealed; echo $?)" in
+    0) warn "sealed: yes (unseal it yourself)" ;;
+    1) ok "sealed: no (unsealed)" ;;
+    *) warn "sealed: unknown" ;;
+  esac
+  info "Mount/policy/role checks require a privileged token and are done by 'configure'."
+}
+
+case "${CMD}" in
+  init)        cmd_init ;;
+  configure)   cmd_configure ;;
+  revoke-root) cmd_revoke_root ;;
+  status)      cmd_status ;;
+  *) usage; fail "Unknown command: ${CMD}" ;;
+esac
+exit 0

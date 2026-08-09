@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+# release - version helper for openclaw-secure-local-stack.
+#
+# VERSION (a bare X.Y.Z SemVer) is the single source of truth for the project
+# version. This tool NEVER runs git: it does not commit, tag, or push, and it
+# never auto-increments. Tagging and publishing are deliberate, human actions
+# performed after CI has passed (see docs/CI-CD.md and docs/VERSIONING.md).
+#
+# Subcommands:
+#   current            Print the canonical version from VERSION.
+#   verify             Validate that VERSION is a bare SemVer. On a tag build
+#                      (CI_COMMIT_TAG set, or --tag <tag>) additionally require
+#                      the tag to equal 'v<VERSION>' exactly. Used by CI.
+#   prepare <version>  Update VERSION to <version> and roll the CHANGELOG's
+#                      '## [Unreleased]' heading into '## [<version>] - <date>'
+#                      with a fresh empty Unreleased above it. Edits files only;
+#                      it does NOT commit/tag/push. <version> must be a bare
+#                      SemVer strictly greater than the current VERSION.
+#
+# Options:
+#   --tag <tag>        Override CI_COMMIT_TAG for `verify` (e.g. --tag v0.1.0).
+#   --date <YYYY-MM-DD> Override the release date for `prepare` (default: today).
+#   -h, --help         Show this help.
+#
+# Environment:
+#   CI_COMMIT_TAG      When set, `verify` enforces tag == v<VERSION>.
+#   OSLS_RELEASE_ROOT  Repo root to operate on (default: the repository that
+#                      contains this script). Used by the test-suite to point
+#                      `prepare` at a throwaway copy so the real repo is never
+#                      modified.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DEFAULT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ROOT="${OSLS_RELEASE_ROOT:-${DEFAULT_ROOT}}"
+
+VERSION_FILE="${ROOT}/VERSION"
+CHANGELOG_FILE="${ROOT}/CHANGELOG.md"
+
+log()  { printf '%s\n' "$*" >&2; }
+ok()   { printf '[+] %s\n' "$*" >&2; }
+info() { printf '[*] %s\n' "$*" >&2; }
+fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+
+usage() { sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; }
+
+is_semver() {
+  # Bare X.Y.Z with no leading zeros required to be strict; we accept plain ints.
+  printf '%s' "$1" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'
+}
+
+read_version() {
+  [ -r "${VERSION_FILE}" ] || fail "VERSION file not found: ${VERSION_FILE}"
+  tr -d '[:space:]' < "${VERSION_FILE}"
+}
+
+# version_gt A B : return 0 if A > B (numeric, per SemVer field).
+version_gt() {
+  local a="$1" b="$2"
+  local a1 a2 a3 b1 b2 b3
+  a1="${a%%.*}"; a="${a#*.}"; a2="${a%%.*}"; a3="${a#*.}"
+  b1="${b%%.*}"; b="${b#*.}"; b2="${b%%.*}"; b3="${b#*.}"
+  [ "${a1}" -gt "${b1}" ] && return 0
+  [ "${a1}" -lt "${b1}" ] && return 1
+  [ "${a2}" -gt "${b2}" ] && return 0
+  [ "${a2}" -lt "${b2}" ] && return 1
+  [ "${a3}" -gt "${b3}" ] && return 0
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# Parse subcommand + options.
+# ---------------------------------------------------------------------------
+CMD="${1:-}"
+case "${CMD}" in ''|-h|--help) usage; [ -z "${CMD}" ] && exit 1 || exit 0 ;; esac
+shift
+
+TAG_OVERRIDE=""
+DATE_OVERRIDE=""
+POSITIONAL=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --tag)  [ "$#" -ge 2 ] || fail "--tag needs a value"; TAG_OVERRIDE="$2"; shift ;;
+    --date) [ "$#" -ge 2 ] || fail "--date needs a value"; DATE_OVERRIDE="$2"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    --*) fail "Unknown option: $1" ;;
+    *)  POSITIONAL="${POSITIONAL} $1" ;;
+  esac
+  shift
+done
+
+cmd_current() {
+  read_version
+  printf '\n'
+}
+
+cmd_verify() {
+  local v tag
+  v="$(read_version)"
+  is_semver "${v}" || fail "VERSION is not a bare X.Y.Z SemVer: '${v}'"
+  info "VERSION format OK: ${v}"
+
+  tag="${TAG_OVERRIDE:-${CI_COMMIT_TAG:-}}"
+  if [ -n "${tag}" ]; then
+    # Tag build: the tag must be exactly v<VERSION>.
+    case "${tag}" in
+      v[0-9]*) : ;;
+      *) fail "Release tag must look like 'vX.Y.Z' (got '${tag}')." ;;
+    esac
+    if [ "${tag}" != "v${v}" ]; then
+      fail "Tag '${tag}' does not match VERSION 'v${v}'. Update VERSION and the CHANGELOG, then tag v${v}."
+    fi
+    ok "Tag ${tag} matches VERSION ${v}. Release gate satisfied."
+  else
+    ok "No tag in context; validated VERSION format only (normal pipeline)."
+  fi
+}
+
+cmd_prepare() {
+  local target="${POSITIONAL# }"
+  target="${target%% *}"
+  [ -n "${target}" ] || fail "prepare needs a version, e.g. scripts/release prepare 0.2.0"
+  is_semver "${target}" || fail "Requested version is not a bare X.Y.Z SemVer: '${target}'"
+
+  local current; current="$(read_version)"
+  is_semver "${current}" || fail "Current VERSION is not SemVer: '${current}'"
+  if [ "${target}" = "${current}" ]; then
+    fail "Requested version equals the current VERSION (${current}); nothing to do."
+  fi
+  if ! version_gt "${target}" "${current}"; then
+    fail "Requested version ${target} is not greater than current ${current}. This tool never downgrades or auto-increments."
+  fi
+
+  local date="${DATE_OVERRIDE}"
+  if [ -z "${date}" ]; then
+    date="$(date +%Y-%m-%d)"
+  fi
+  case "${date}" in
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) : ;;
+    *) fail "--date must be YYYY-MM-DD (got '${date}')." ;;
+  esac
+
+  [ -w "${VERSION_FILE}" ] || fail "VERSION is not writable: ${VERSION_FILE}"
+  [ -r "${CHANGELOG_FILE}" ] || fail "CHANGELOG not found: ${CHANGELOG_FILE}"
+  grep -q '^## \[Unreleased\]' "${CHANGELOG_FILE}" \
+    || fail "CHANGELOG has no '## [Unreleased]' heading to roll."
+
+  info "Preparing version ${current} -> ${target} (dated ${date})."
+
+  # 1) VERSION becomes the target (canonical source of truth).
+  printf '%s\n' "${target}" > "${VERSION_FILE}"
+
+  # 2) CHANGELOG: turn the first '## [Unreleased]' into a fresh empty Unreleased
+  #    followed by the new released heading. Existing notes stay under the new
+  #    version. A link reference is added if one is not already present.
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/osls-changelog.XXXXXX")" || fail "mktemp failed"
+  awk -v ver="${target}" -v date="${date}" '
+    BEGIN { rolled = 0 }
+    {
+      if (!rolled && $0 ~ /^## \[Unreleased\]/) {
+        print "## [Unreleased]"
+        print ""
+        print "## [" ver "] - " date
+        rolled = 1
+        next
+      }
+      print
+    }
+  ' "${CHANGELOG_FILE}" > "${tmp}" || fail "Failed to rewrite CHANGELOG."
+
+  if ! grep -q "^\[${target}\]:" "${tmp}"; then
+    if grep -q '^\[Unreleased\]:' "${tmp}"; then
+      local tmp2; tmp2="$(mktemp "${TMPDIR:-/tmp}/osls-changelog2.XXXXXX")" || fail "mktemp failed"
+      awk -v ver="${target}" '
+        { print }
+        /^\[Unreleased\]:/ { print "[" ver "]: about:blank" }
+      ' "${tmp}" > "${tmp2}" || fail "Failed to add CHANGELOG link ref."
+      mv -f "${tmp2}" "${tmp}"
+    fi
+  fi
+
+  mv -f "${tmp}" "${CHANGELOG_FILE}"
+
+  ok "VERSION and CHANGELOG updated for ${target}."
+  info "This tool made NO git changes. Review the diff, then commit and tag v${target} yourself:"
+  log  "    git add VERSION CHANGELOG.md"
+  log  "    git commit -m \"release: v${target}\""
+  log  "    git tag -a v${target} -m \"v${target}\"   # triggers the tag pipeline"
+}
+
+case "${CMD}" in
+  current) cmd_current ;;
+  verify)  cmd_verify ;;
+  prepare) cmd_prepare ;;
+  *) usage; fail "Unknown subcommand: ${CMD}" ;;
+esac
+exit 0

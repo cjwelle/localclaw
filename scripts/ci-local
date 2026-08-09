@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# ci-local - run the CI checks locally: Ubuntu-in-Docker and native-host tests.
+#
+# This mirrors what .gitlab-ci.yml does, but on your machine and only when you
+# ask. It performs NO Docker action implicitly: pulling the base image and
+# building the test image are explicit subcommands, so simply running the
+# native tests never touches the network or the Docker daemon.
+#
+# macOS limitation (by design): Docker runs Linux containers only; it cannot run
+# macOS. So the Ubuntu image covers the Linux target, and macOS is covered by
+# running the SAME suite natively on a real Mac — locally via `ci-local native`,
+# and in CI via a GitLab shell runner tagged `macos`. We do not fake a macOS
+# container image. See docs/CI-CD.md.
+#
+# Subcommands:
+#   native            Run the test-suite on THIS host (use on macOS or Linux).
+#                     Also runs shellcheck if it is installed.
+#   lint              Run shellcheck on the shipped scripts (host), if present.
+#   pull              docker pull the Ubuntu base image (explicit network op).
+#   build             docker build the CI image from docker/Dockerfile.ci.
+#   ubuntu            Run the suite INSIDE the built Ubuntu image (repo mounted
+#                     read-only). Does not build; run `build` first (or `all`).
+#   all               pull + build + ubuntu (the full Linux path in one go).
+#   help              Show this help.
+#
+# Pass extra args to the underlying tests/run.sh after `--`, e.g.:
+#   scripts/ci-local native -- -v
+#   scripts/ci-local ubuntu -- 50-restore
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+IMAGE="openclaw-secure-local-stack-ci:latest"
+BASE_IMAGE="ubuntu:latest"
+DOCKERFILE="${REPO_DIR}/docker/Dockerfile.ci"
+
+log()  { printf '%s\n' "$*" >&2; }
+info() { printf '[*] %s\n' "$*" >&2; }
+ok()   { printf '[+] %s\n' "$*" >&2; }
+warn() { printf '[!] %s\n' "$*" >&2; }
+fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+usage() { sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; }
+
+need_docker() {
+  have docker || fail "docker not found. Install Docker/Rancher Desktop, or use 'scripts/ci-local native'."
+}
+
+# Split ARGS into pre-'--' (ignored) and post-'--' extras for tests/run.sh.
+RUN_ARGS=""
+collect_run_args() {
+  local seen=0
+  while [ "$#" -gt 0 ]; do
+    if [ "${seen}" -eq 1 ]; then RUN_ARGS="${RUN_ARGS} $1"; fi
+    [ "$1" = "--" ] && seen=1
+    shift
+  done
+}
+
+SCRIPTS_TO_LINT="
+scripts/install
+scripts/bootstrap
+scripts/vault-bootstrap
+scripts/doctor
+scripts/vault-start
+scripts/work-session
+scripts/backup
+scripts/restore
+scripts/uninstall
+scripts/ci-local
+scripts/release
+scripts/lib/common.sh
+"
+
+do_lint() {
+  if ! have shellcheck; then
+    warn "shellcheck not installed; skipping lint (install it to lint locally)."
+    return 0
+  fi
+  info "Running shellcheck..."
+  # shellcheck disable=SC2086
+  ( cd "${REPO_DIR}" && shellcheck -x ${SCRIPTS_TO_LINT} ) && ok "shellcheck passed."
+}
+
+do_native() {
+  info "Running the test-suite natively on $(uname -s) ..."
+  do_lint
+  # shellcheck disable=SC2086
+  bash "${REPO_DIR}/tests/run.sh" ${RUN_ARGS}
+}
+
+do_pull() {
+  need_docker
+  info "Pulling base image ${BASE_IMAGE} (explicit network operation)..."
+  docker pull "${BASE_IMAGE}"
+  ok "Pulled ${BASE_IMAGE}."
+}
+
+do_build() {
+  need_docker
+  [ -r "${DOCKERFILE}" ] || fail "Missing ${DOCKERFILE}"
+  info "Building ${IMAGE} from ${DOCKERFILE}..."
+  docker build -t "${IMAGE}" -f "${DOCKERFILE}" "${REPO_DIR}"
+  ok "Built ${IMAGE}."
+}
+
+do_ubuntu() {
+  need_docker
+  if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
+    fail "Image ${IMAGE} not found. Run 'scripts/ci-local build' first (or 'all')."
+  fi
+  info "Running the suite inside ${IMAGE} (repo mounted READ-ONLY)..."
+  # The repo is mounted read-only: the suite writes only to a throwaway HOME
+  # under the container's /tmp, never to the mounted source tree.
+  # --network none: the tests never need the network. No privileged flags.
+  # shellcheck disable=SC2086
+  docker run --rm \
+    --network none \
+    -v "${REPO_DIR}:/work:ro" \
+    -w /work \
+    "${IMAGE}" \
+    bash tests/run.sh ${RUN_ARGS}
+}
+
+CMD="${1:-help}"
+shift || true
+collect_run_args "$@"
+
+case "${CMD}" in
+  native|host|mac) do_native ;;
+  lint)            do_lint ;;
+  pull)            do_pull ;;
+  build)           do_build ;;
+  ubuntu|linux)    do_ubuntu ;;
+  all)             do_pull; do_build; do_ubuntu ;;
+  -h|--help|help)  usage ;;
+  *) usage; fail "Unknown subcommand: ${CMD}" ;;
+esac

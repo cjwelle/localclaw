@@ -1,0 +1,72 @@
+# openclaw-secure-local-stack — .gitignore
+#
+# This repository must never contain secrets, runtime state, or a live
+# database. Rendered configuration and runtime data live OUTSIDE the repo
+# (under XDG config/state directories), but these rules are a defense in
+# depth in case anything is generated or copied in by mistake.
+
+# ---- Secrets and key material (never commit) ------------------------------
+*.age
+*.agekey
+*.key
+*.pem
+*.p12
+*.pfx
+age-identity*
+*age-identity*
+vault-backup-age-identity*
+# Public recipient is not secret, but keep runtime copies out of the repo.
+vault-backup-age-recipient
+
+# Vault tokens / unseal material must never be written to files, but block
+# common accidental names anyway.
+*token*.txt
+*unseal*.txt
+*.recovery-keys
+root-token*
+
+# ---- Rendered runtime configuration (generated from the templates) --------
+# The *.example / *.template / *.sample files ARE tracked; their rendered
+# counterparts are not.
+/config/stack.conf
+/config/vault.hcl
+/config/openclaw.json
+/config/secrets.map
+config/*.bak.*
+
+# ---- Runtime state --------------------------------------------------------
+# Live Vault storage, runtime home, logs, and any local data directory.
+/local-vault/data/
+/data/
+/state/
+/logs/
+*.log
+
+# ---- Work-memory SQLite database and sidecars -----------------------------
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+work_memory*
+
+# ---- Encrypted backup archives (belong in your backup dir, not the repo) --
+*.tar.gz.age
+*.tar.age
+backups/
+Backups/
+/dist/
+
+# ---- Editor / OS cruft ----------------------------------------------------
+.DS_Store
+.AppleDouble
+Thumbs.db
+*~
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# ---- Local overrides ------------------------------------------------------
+*.local
+.env
+.env.*

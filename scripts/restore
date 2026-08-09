@@ -1,0 +1,369 @@
+#!/usr/bin/env bash
+# restore - inspect and (deliberately) restore an age-encrypted Vault backup.
+#
+# SAFE BY DEFAULT. With only an archive and an identity, this script PLANS and
+# INSPECTS -- it never contacts a live Vault to change it and never touches your
+# live config or workspace. It:
+#   1. Validates the encrypted archive path and the private age identity path.
+#   2. Decrypts the archive into an OWNER-ONLY temporary directory (age reads the
+#      identity from a FILE; no secret ever appears on argv).
+#   3. Defends against tar path traversal BEFORE extracting: it refuses any
+#      member that is absolute, contains '..', or is anything other than a plain
+#      file or directory (no symlinks, hardlinks, or device nodes).
+#   4. Verifies MANIFEST.txt and every checksum in SHA256SUMS.
+#   5. Runs 'vault operator raft snapshot inspect' on the recovered snapshot.
+#
+# The DESTRUCTIVE 'vault operator raft snapshot restore' runs ONLY when you pass
+# --restore AND type an exact confirmation that names the action. '-force' is
+# never used by default; --force gates it behind a SECOND exact confirmation.
+#
+# It NEVER overwrites your live config or workspace automatically. Use --stage-to
+# to copy the archived non-secret config/policies somewhere for inspection, or
+# --restore-config to opt in to replacing the live config files (each existing
+# file is preserved as a timestamped backup first).
+#
+# Usage:
+#   scripts/restore --identity <agekey> <archive.tar.gz.age>              # inspect only
+#   scripts/restore --identity <agekey> --stage-to <dir> <archive>        # + stage config
+#   scripts/restore --identity <agekey> --restore-config <archive>        # + replace live config
+#   scripts/restore --identity <agekey> --restore <archive>               # DESTRUCTIVE snapshot restore
+#   scripts/restore --identity <agekey> --restore --force <archive>       # + snapshot restore -force
+#   scripts/restore --help
+#
+# Environment:
+#   LOCAL_VAULT_TOKEN   (required only for --restore) a token permitted to run
+#                       'operator raft snapshot restore' on the local Vault.
+#
+# Written to be portable across Bash 3.2 (macOS system Bash) and modern Bash:
+# no associative arrays, no `mapfile`, no `eval`.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+. "${SCRIPT_DIR}/lib/common.sh"
+load_stack_config
+
+IDENTITY=""
+STAGE_TO=""
+DO_RESTORE=0
+DO_FORCE=0
+DO_RESTORE_CONFIG=0
+KEEP_TEMP=0
+ARCHIVE=""
+
+usage() {
+  cat >&2 <<EOF
+Usage: scripts/restore --identity <agekey> [options] <archive.tar.gz.age>
+
+  Default (no --restore): inspect only. Decrypt to an owner-only temp dir,
+  path-safety check the tar, verify MANIFEST.txt + SHA256SUMS, and run
+  'vault operator raft snapshot inspect'. Contacts no live Vault; changes
+  nothing outside the temp dir.
+
+Options:
+  --identity <file>   (required) private age identity used ONLY to decrypt.
+  --stage-to <dir>    Copy the archived NON-SECRET config + policies into <dir>
+                      for inspection (staged recovery). Refuses unsafe dirs and
+                      never touches your live config.
+  --restore-config    Opt in to replacing your LIVE config files (vault.hcl,
+                      stack.conf, openclaw.json) with the archived copies. Each
+                      existing file is preserved as a timestamped .bak first.
+  --restore           Perform the DESTRUCTIVE 'operator raft snapshot restore'
+                      into a running, unsealed local Vault. Requires
+                      LOCAL_VAULT_TOKEN and an exact typed confirmation.
+  --force             Only with --restore: use 'snapshot restore -force', which
+                      bypasses the cluster/keyring match check. Requires a
+                      SEPARATE second exact confirmation. See docs/BACKUP-RESTORE.md.
+  --keep-temp         Leave the owner-only temp dir in place for debugging.
+  --help              Show this help.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --identity)       [ "$#" -ge 2 ] || { usage; fail "--identity needs a path"; }; IDENTITY="$2"; shift ;;
+    --stage-to)       [ "$#" -ge 2 ] || { usage; fail "--stage-to needs a path"; }; STAGE_TO="$2"; shift ;;
+    --restore)        DO_RESTORE=1 ;;
+    --force)          DO_FORCE=1 ;;
+    --restore-config) DO_RESTORE_CONFIG=1 ;;
+    --keep-temp)      KEEP_TEMP=1 ;;
+    -h|--help)        usage; exit 0 ;;
+    --*)              usage; fail "Unknown option: $1" ;;
+    *)
+      [ -z "${ARCHIVE}" ] || { usage; fail "Unexpected extra argument: $1"; }
+      ARCHIVE="$1" ;;
+  esac
+  shift
+done
+
+[ -n "${ARCHIVE}" ]  || { usage; fail "An encrypted archive path is required."; }
+[ -n "${IDENTITY}" ] || { usage; fail "--identity <agekey> is required."; }
+if [ "${DO_FORCE}" -eq 1 ] && [ "${DO_RESTORE}" -eq 0 ]; then
+  fail "--force is only meaningful together with --restore."
+fi
+
+# ---------------------------------------------------------------------------
+# Validate input paths. We touch no secrets: only that the FILES exist, are
+# readable regular files, and (for the identity) are owner-private.
+# ---------------------------------------------------------------------------
+[ -e "${ARCHIVE}" ]  || fail "Encrypted archive not found: ${ARCHIVE}"
+[ -f "${ARCHIVE}" ]  || fail "Encrypted archive is not a regular file: ${ARCHIVE}"
+[ -r "${ARCHIVE}" ]  || fail "Encrypted archive is not readable: ${ARCHIVE}"
+case "${ARCHIVE}" in
+  *.tar.gz.age|*.tar.age) : ;;
+  *) warn "Archive does not end in .tar.gz.age; continuing, but check you have the right file." ;;
+esac
+
+[ -e "${IDENTITY}" ] || fail "age identity file not found: ${IDENTITY}"
+[ -f "${IDENTITY}" ] || fail "age identity is not a regular file: ${IDENTITY}"
+[ -r "${IDENTITY}" ] || fail "age identity is not readable: ${IDENTITY}"
+
+have "${AGE_BIN}"   || fail "age binary not found: ${AGE_BIN}. Run scripts/install."
+have tar            || fail "tar not found."
+have "${VAULT_BIN}" || fail "vault binary not found: ${VAULT_BIN}."
+
+if [ -n "${STAGE_TO}" ]; then
+  # A staging directory must be a safe, non-system, non-repo, non-state path.
+  validate_safe_dir "${STAGE_TO}" "--stage-to directory"
+  case "${STAGE_TO}" in
+    "${OSLS_REPO_DIR}"|"${OSLS_REPO_DIR}"/*)
+      fail "--stage-to must not live inside the repository: ${STAGE_TO}" ;;
+    "${OSLS_STATE_DIR}"|"${OSLS_STATE_DIR}"/*)
+      fail "--stage-to must not live inside the runtime state directory: ${STAGE_TO}" ;;
+  esac
+fi
+
+# ---------------------------------------------------------------------------
+# Owner-only staging. Everything below umask 077; removed on any exit unless
+# --keep-temp was requested. The decrypted archive and snapshot are SECRET and
+# live only here (700), never in a world-readable location.
+# ---------------------------------------------------------------------------
+umask 077
+RESTORE_TMP="$(make_secure_tmpdir openclaw-vault-restore)"
+# shellcheck disable=SC2329 # invoked by trap
+cleanup() {
+  trap - EXIT HUP INT TERM
+  if [ "${KEEP_TEMP}" -eq 1 ]; then
+    [ -n "${RESTORE_TMP:-}" ] && warn "Left decrypted material in ${RESTORE_TMP} (--keep-temp)."
+    return 0
+  fi
+  [ -n "${RESTORE_TMP:-}" ] && [ -d "${RESTORE_TMP}" ] && rm -rf "${RESTORE_TMP}"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+TARBALL="${RESTORE_TMP}/archive.tar.gz"
+EXTRACT="${RESTORE_TMP}/extract"
+mkdir -p "${EXTRACT}"
+
+# --- 1) Decrypt to the owner-only temp dir (identity read from a FILE) -------
+info "Decrypting archive with the provided age identity..."
+if ! "${AGE_BIN}" --decrypt --identity "${IDENTITY}" --output "${TARBALL}" "${ARCHIVE}"; then
+  fail "Decryption failed. Wrong identity for this archive, or the archive is corrupt."
+fi
+[ -s "${TARBALL}" ] || fail "Decrypted archive is empty."
+ok "Archive decrypted to owner-only temp space."
+
+# --- 2) Path-safety check BEFORE extracting ---------------------------------
+# Two independent listings: one for names (traversal), one for member types.
+# We refuse anything that is not a plain file or directory, and any name that
+# is absolute or contains a '..' component. Our backups only ever contain
+# regular files and directories with simple './...' names, so a rejection here
+# means the archive is not one we produced -- do not extract it.
+names_file="${RESTORE_TMP}/names.txt"
+types_file="${RESTORE_TMP}/types.txt"
+tar -tzf  "${TARBALL}" > "${names_file}" 2>/dev/null || fail "Unable to list the archive; it is not a valid gzip tar."
+tar -tvzf "${TARBALL}" > "${types_file}" 2>/dev/null || fail "Unable to read archive member types."
+
+while IFS= read -r entry; do
+  [ -n "${entry}" ] || continue
+  case "${entry}" in
+    /*)            fail "Refusing archive: absolute member path: ${entry}" ;;
+    ../*|*/../*|*/..) fail "Refusing archive: '..' in member path: ${entry}" ;;
+    *..*)          fail "Refusing archive: '..' in member path: ${entry}" ;;
+  esac
+done < "${names_file}"
+
+# Type check: first character of the mode string. 'd' dir, '-' regular file are
+# the only acceptable types. Anything else (l,h,b,c,p,s) is refused. A ' -> '
+# in the line indicates a link even if the mode parse is unusual.
+while IFS= read -r line; do
+  [ -n "${line}" ] || continue
+  case "${line}" in *' -> '*) fail "Refusing archive: contains a link member: ${line}" ;; esac
+  first="${line%%[[:space:]]*}"
+  tchar="$(printf '%.1s' "${first}")"
+  case "${tchar}" in
+    d|-) : ;;
+    *)   fail "Refusing archive: unsafe member type '${tchar}' in: ${line}" ;;
+  esac
+done < "${types_file}"
+ok "Archive path-safety check passed (regular files and directories, no traversal)."
+
+# --- 3) Extract into the owner-only temp dir --------------------------------
+( umask 077; tar -xzf "${TARBALL}" -C "${EXTRACT}" ) || fail "Extraction failed."
+
+MANIFEST="${EXTRACT}/MANIFEST.txt"
+SUMS="${EXTRACT}/SHA256SUMS"
+SNAPSHOT="${EXTRACT}/vault/raft.snap"
+[ -r "${MANIFEST}" ] || fail "Archive is missing MANIFEST.txt; refusing to trust it."
+[ -r "${SUMS}" ]     || fail "Archive is missing SHA256SUMS; refusing to trust it."
+[ -s "${SNAPSHOT}" ] || fail "Archive is missing vault/raft.snap; refusing to trust it."
+
+# --- 4) Verify MANIFEST.txt and SHA256SUMS ----------------------------------
+# MANIFEST identity: it must belong to this app and a schema we understand.
+manifest_get() { grep -E "^$1=" "${MANIFEST}" | head -1 | sed "s/^$1=//"; }
+m_app="$(manifest_get app)"
+m_schema="$(manifest_get archive_schema)"
+m_created="$(manifest_get created_utc)"
+m_snap_sha="$(manifest_get snapshot_sha256)"
+[ "${m_app}" = "${APP_NAME}" ] || fail "MANIFEST app mismatch (got '${m_app}', expected '${APP_NAME}')."
+case "${m_schema}" in
+  1) : ;;
+  '') fail "MANIFEST has no archive_schema; refusing." ;;
+  *)  warn "MANIFEST archive_schema=${m_schema} is newer than this tool understands (1); continuing cautiously." ;;
+esac
+
+info "Verifying SHA256SUMS for every archived file..."
+sum_fail=0
+while IFS= read -r line; do
+  case "${line}" in ''|'#'*) continue ;; esac
+  # Format: "<64hex>  ./relative/path" (two-space separator, no spaces in names).
+  want="${line%% *}"
+  rel="${line#*  }"
+  [ -n "${rel}" ] && [ "${rel}" != "${line}" ] || { warn "Skipping malformed SHA256SUMS line: ${line}"; continue; }
+  target="${EXTRACT}/${rel}"
+  if [ ! -r "${target}" ]; then
+    warn "SHA256SUMS references a missing file: ${rel}"; sum_fail=1; continue
+  fi
+  got="$(sha256_of "${target}")"
+  if [ "${got}" != "${want}" ]; then
+    warn "Checksum MISMATCH for ${rel}"; sum_fail=1
+  fi
+done < "${SUMS}"
+[ "${sum_fail}" -eq 0 ] || fail "SHA256SUMS verification failed; the archive is corrupt or tampered with."
+
+# Cross-check the snapshot checksum recorded in the MANIFEST too.
+if [ -n "${m_snap_sha}" ]; then
+  snap_got="$(sha256_of "${SNAPSHOT}")"
+  [ "${snap_got}" = "${m_snap_sha}" ] || fail "Snapshot checksum does not match MANIFEST snapshot_sha256."
+fi
+ok "MANIFEST verified and all checksums match (created ${m_created:-unknown})."
+
+# --- 5) Inspect the snapshot (read-only; no live Vault needed) ---------------
+info "Inspecting the Raft snapshot (read-only)..."
+if "${VAULT_BIN}" operator raft snapshot inspect "${SNAPSHOT}" >&2 2>/dev/null; then
+  ok "Snapshot inspect succeeded."
+else
+  warn "Snapshot inspect reported an issue or is unsupported by this vault CLI."
+  warn "Verify your vault version before attempting a restore."
+fi
+
+# --- Staged recovery: copy archived NON-SECRET config/policies for review ----
+# This never touches your live config. It is an inspection convenience only.
+if [ -n "${STAGE_TO}" ]; then
+  info "Staging archived config + policies into ${STAGE_TO} (non-secret only)..."
+  ensure_private_dir "${STAGE_TO}"
+  if [ -d "${EXTRACT}/config" ]; then
+    ensure_private_dir "${STAGE_TO}/config"
+    for f in "${EXTRACT}/config"/*; do
+      [ -e "${f}" ] || continue
+      ( umask 077; cp -p "${f}" "${STAGE_TO}/config/" )
+    done
+  fi
+  if [ -d "${EXTRACT}/policies" ]; then
+    ensure_private_dir "${STAGE_TO}/policies"
+    for f in "${EXTRACT}/policies"/*; do
+      [ -e "${f}" ] || continue
+      ( umask 077; cp -p "${f}" "${STAGE_TO}/policies/" )
+    done
+  fi
+  ok "Staged archived config/policies under ${STAGE_TO} for your review."
+  info "NOTE: vault/raft.snap was NOT staged; the snapshot is restored via --restore only."
+fi
+
+# --- Opt-in live config restore (timestamped conflict backups) --------------
+# Explicit opt-in only. We NEVER overwrite live config automatically. Each
+# existing destination file is preserved as a timestamped .bak before replacing.
+if [ "${DO_RESTORE_CONFIG}" -eq 1 ]; then
+  warn "About to replace your LIVE config files with the archived copies."
+  warn "Existing files are preserved as timestamped .bak first. Your secrets.map is NOT touched."
+  require_typed_confirmation "restore config files" \
+    "Type 'restore config files' to overwrite live config in ${OSLS_CONFIG_DIR}"
+  ensure_private_dir "${OSLS_CONFIG_DIR}"
+  _restore_one() {
+    # _restore_one <archived-basename> <live-destination-path>
+    local base="$1" dst="$2" src="${EXTRACT}/config/$1"
+    if [ ! -r "${src}" ]; then
+      warn "Archive has no config/${base}; skipping."
+      return 0
+    fi
+    backup_existing_file "${dst}"
+    ( umask 077; cp "${src}" "${dst}" )
+    chmod 600 "${dst}" 2>/dev/null || true
+    ok "Restored ${base} -> ${dst}"
+  }
+  _restore_one "vault.hcl"     "${OSLS_VAULT_HCL}"
+  _restore_one "stack.conf"    "${OSLS_STACK_CONF}"
+  _restore_one "openclaw.json" "${OSLS_OPENCLAW_JSON}"
+  info "Live config restored. Review it before starting Vault."
+fi
+
+# ===========================================================================
+# Destructive snapshot restore. Gated behind --restore and an exact typed
+# confirmation that NAMES the action. Never uses -force unless --force is also
+# given, which requires a SEPARATE second exact confirmation.
+# ===========================================================================
+if [ "${DO_RESTORE}" -eq 0 ]; then
+  printf '\n' >&2
+  ok "Inspection complete. Nothing was restored (no --restore)."
+  info "Recovered snapshot is valid. To restore it into a running, unsealed local"
+  info "Vault, re-run with --restore (see docs/BACKUP-RESTORE.md first)."
+  exit 0
+fi
+
+printf '\n' >&2
+warn "DESTRUCTIVE STEP: 'vault operator raft snapshot restore' OVERWRITES the"
+warn "target Vault's entire data set with this snapshot. This cannot be undone."
+warn "Only proceed against an ISOLATED, loopback-only local Vault you control."
+
+# Refuse an inherited VAULT_TOKEN; require an explicit LOCAL_VAULT_TOKEN.
+if [ -n "${VAULT_TOKEN:-}" ] && [ -z "${OSLS_ALLOW_VAULT_TOKEN:-}" ]; then
+  fail "Refusing inherited VAULT_TOKEN. Unset it and pass LOCAL_VAULT_TOKEN instead."
+fi
+[ -n "${LOCAL_VAULT_TOKEN:-}" ] || fail "LOCAL_VAULT_TOKEN is required for --restore (a token permitted to restore snapshots)."
+
+# The local Vault must be running AND unsealed.
+vault_require_unsealed
+
+require_typed_confirmation "restore vault snapshot" \
+  "Type 'restore vault snapshot' to OVERWRITE the local Vault on $(vault_addr)"
+
+if [ "${DO_FORCE}" -eq 1 ]; then
+  warn "--force uses 'snapshot restore -force', which BYPASSES the cluster/keyring"
+  warn "match safety check. Use it ONLY when restoring into a DIFFERENT/empty cluster"
+  warn "whose autounseal/keyring will not match the snapshot (see docs/BACKUP-RESTORE.md)."
+  require_typed_confirmation "force overwrite" \
+    "Type 'force overwrite' to confirm using -force"
+  info "Restoring snapshot with -force..."
+  if LOCAL_VAULT_TOKEN="${LOCAL_VAULT_TOKEN}" vault_local operator raft snapshot restore -force "${SNAPSHOT}"; then
+    ok "Snapshot restored (-force) into the local Vault."
+  else
+    fail "Snapshot restore -force failed."
+  fi
+else
+  info "Restoring snapshot (cluster/keyring safety check enabled)..."
+  if LOCAL_VAULT_TOKEN="${LOCAL_VAULT_TOKEN}" vault_local operator raft snapshot restore "${SNAPSHOT}"; then
+    ok "Snapshot restored into the local Vault."
+  else
+    warn "Snapshot restore failed. If this is a fresh/different cluster whose keyring"
+    warn "cannot match, re-run with --force after reading docs/BACKUP-RESTORE.md."
+    fail "Snapshot restore failed."
+  fi
+fi
+
+printf '\n' >&2
+ok "Restore complete. Verify with a read-only 'vault status' and spot-check mounts,"
+info "then rotate anything that may have been exposed during recovery."
+exit 0

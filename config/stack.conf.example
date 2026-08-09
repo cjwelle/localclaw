@@ -1,0 +1,61 @@
+# openclaw-secure-local-stack - non-secret stack configuration (SAMPLE).
+#
+# Copy this file to:
+#   ${XDG_CONFIG_HOME:-$HOME/.config}/openclaw-secure-local-stack/stack.conf
+# (scripts/bootstrap does this for you) and edit the values below.
+#
+# This file MUST NOT contain secrets: no tokens, no unseal shares, no API
+# keys, no private age identities. Only non-secret, non-personal settings.
+#
+# Format: KEY=VALUE, one per line. Values may be quoted. Unknown keys are
+# ignored with a warning. Only the keys listed here are honoured.
+
+# --- Local Vault listener (loopback only) ---------------------------------
+VAULT_HOST=127.0.0.1
+VAULT_PORT=18200
+VAULT_CLUSTER_PORT=18201
+VAULT_NODE_ID=openclaw-local-1
+VAULT_KV_MOUNT=local
+
+# --- OpenClaw foreground gateway ------------------------------------------
+OPENCLAW_PROFILE=work
+OPENCLAW_PORT=18789
+
+# --- External binaries (leave as names to use $PATH, or set absolute paths) -
+VAULT_BIN=vault
+OPENCLAW_BIN=openclaw
+AGE_BIN=age
+AGE_KEYGEN_BIN=age-keygen
+
+# --- Vault initialization guidance (used by vault-bootstrap init) ----------
+VAULT_KEY_SHARES=5
+VAULT_KEY_THRESHOLD=3
+
+# --- Encrypted backups -----------------------------------------------------
+# REQUIRED for backups: an absolute path to a local or cloud-synced folder
+# you control. Set it to a real absolute path on YOUR machine; the shapes
+# below are illustrations only ($HOME expands to your home directory):
+#
+#   macOS iCloud Drive:
+#     BACKUP_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/OpenClawBackups"
+#   Generic cloud-sync client:
+#     BACKUP_DIR="$HOME/CloudStorage/OpenClawBackups"
+#   Plain local directory:
+#     BACKUP_DIR="$HOME/openclaw-backups"
+#
+# NOTE: this file is parsed as a plain KEY=VALUE allow-list, not shell, so a
+# literal "$HOME" is NOT expanded here -- write the fully expanded absolute
+# path when you set BACKUP_DIR below.
+#
+# The stack writes ONLY age-encrypted ciphertext here. It refuses the
+# filesystem root, system directories, your bare home directory, the repo,
+# and the runtime state directory.
+BACKUP_DIR=
+
+# Retention: newest N encrypted archives to keep.
+BACKUP_KEEP_DAILY=14
+BACKUP_KEEP_WEEKLY=8
+
+# --- Work memory -----------------------------------------------------------
+# Retention window documented in sql/ and applied by sql/purge_expired.sql.
+MEMORY_RETENTION=30 days
