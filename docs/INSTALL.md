@@ -163,8 +163,36 @@ safe to run at any time, on any machine, including in CI.
 | `tar` | Packaging backups | Yes (for backups) |
 | `shasum` or `sha256sum` | Integrity checks | Yes |
 | `age`, `age-keygen` | Encrypted backups | Optional (backups) |
+| `bw` | Bitwarden backup-key retrieval | Optional (if using Bitwarden) |
+| `op` | 1Password backup-key retrieval | Optional (if using 1Password) |
+| `lpass` | LastPass backup-key retrieval | Optional (if using LastPass) |
 | `openclaw` | The gateway / terminal UI | Yes (official npm package) |
 | `shellcheck` | Linting scripts (contributors) | Optional |
+
+### Password-manager prerequisites
+
+The Bitwarden, 1Password, and LastPass integrations are optional. To use one,
+you must have all of the following before running `./osls credentials configure`:
+
+1. An active account with the provider you selected. The account must be able
+   to read a secure note in its vault; organization-managed accounts must also
+   permit CLI access.
+2. The provider's official CLI installed and available on `PATH` (`bw`, `op`,
+   or `lpass`).
+3. Your provider master password plus any required MFA, security key, or
+   desktop approval. OSLS does not bypass provider authentication.
+4. `age` and `age-keygen`, plus the local `vault`, `tar`, and checksum tools.
+5. An age private identity saved in the provider and its matching public
+   recipient configured locally. The private identity must be a complete,
+   single key—not a password, unseal share, or mixed note.
+6. A bootstrapped OSLS installation and at least one encrypted backup made with
+   that matching public recipient. Run `./osls doctor` before setup.
+
+The provider CLI may need network access on its first sign-in. Do not place
+provider passwords, session tokens, age private identities, or Vault unseal
+shares in `stack.conf`, Git, shell history, or command-line arguments. Follow
+the detailed setup and verification procedure in
+[`BACKUP-RESTORE.md`](BACKUP-RESTORE.md).
 
 ## 2. macOS (Homebrew)
 

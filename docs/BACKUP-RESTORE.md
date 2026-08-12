@@ -8,6 +8,41 @@ manager. `osls backup verify` temporarily retrieves that identity, verifies the
 archive with the existing read-only restore verifier, then removes the
 temporary file. It does not restore Vault or replace configuration.
 
+### Prerequisites checklist
+
+Before configuring this workflow, confirm all of the following:
+
+- A supported operating system: macOS or Ubuntu/Linux with Bash, a working
+  network connection, and permission to install command-line tools.
+- An active account with the provider you choose:
+  [Bitwarden](https://bitwarden.com/), [1Password](https://1password.com/),
+  or [LastPass](https://www.lastpass.com/). The account must be able to sign
+  in and read the vault/item containing the backup identity.
+- The provider's official CLI installed and available on `PATH`: `bw`, `op`,
+  or `lpass`. The CLI must be compatible with the account and operating system.
+- The provider's master password and any required MFA/security-key approval.
+  The workflow cannot bypass provider authentication, account recovery, or
+  organization policies.
+- `age`, `age-keygen`, `tar`, `shasum` or `sha256sum`, and the local `vault`
+  CLI installed. Run `./osls doctor` and fix required failures first.
+- This repository bootstrapped with `./osls bootstrap`, so the owner-only
+  `stack.conf` exists and can be updated. Do not configure this from a shared
+  or world-writable account.
+- One existing age key pair: the private identity stored in the provider, and
+  its matching public recipient stored locally at
+  `${XDG_CONFIG_HOME:-$HOME/.config}/openclaw-secure-local-stack/vault-backup-age-recipient`.
+- At least one `*.tar.gz.age` backup created with that same public recipient.
+  A newly configured provider cannot verify an archive encrypted to a
+  different key.
+- A secure provider record containing exactly one complete age private
+  identity. Do not use a record that mixes multiple keys, passwords, unseal
+  shares, or unrelated notes into the value returned by the CLI.
+
+If the provider uses an organization-managed vault, the organization must
+allow CLI access to the item and permit the account to read secure notes.
+Offline-only provider access is insufficient for the first retrieval unless
+the provider CLI already has a valid local session.
+
 ### 1. Create one secure record
 
 Create a secure note in exactly one provider and paste the complete age private
