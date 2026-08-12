@@ -72,9 +72,10 @@ esac
 if [ "${run_plan}" -eq 1 ]; then
   checkpoint "install plan"
   install_plan_log="${HOME}/localclaw-install-plan.log"
-  printf '  [10-dry-run] running install plan (output: %s)\n' "${install_plan_log}" >&2
+  printf '  [10-dry-run] running install plan (output captured; this step may be quiet; log: %s)\n' "${install_plan_log}" >&2
   if run_bounded 30 bash "${SCRIPTS}/install" >"${install_plan_log}" 2>&1; then
     t_pass "install (plan) exits 0"
+    checkpoint "install plan complete"
   else
     install_plan_status=$?
     t_fail "install (plan) exits 0 (status ${install_plan_status}); output follows"
