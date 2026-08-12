@@ -287,16 +287,18 @@ plan_macos() {
     # Older Homebrew taps can contain formulas that fail to import (for
     # example, a stale vagrant.rb) before Homebrew reaches Vault. Refresh only
     # this tap; do not reset Homebrew or modify unrelated taps.
-    if brew tap 2>/dev/null | grep -qx 'hashicorp/tap'; then
-      run_step "remove stale hashicorp/tap" brew untap hashicorp/tap
-    fi
     if [ "${APPLY}" -eq 1 ]; then
+      # Do not run `brew tap`/`brew tap-list` while planning: Homebrew loads
+      # every formula in the tap and an old broken formula can hang or fail
+      # before LocalClaw has made any change.
+      brew untap hashicorp/tap 2>/dev/null || true
       if ! brew tap hashicorp/tap; then
         warn "Homebrew could not import hashicorp/tap (often caused by an older Homebrew formula parser)."
         run_step "update Homebrew" brew update
         run_step "repair hashicorp/tap" brew tap --repair
       fi
     else
+      # Plan mode must remain read-only and must not invoke any tap command.
       printf '    $ brew tap hashicorp/tap\n' >&2
       printf '    # If tap import fails, run: brew update && brew tap --repair\n' >&2
     fi
