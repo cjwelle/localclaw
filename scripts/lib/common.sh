@@ -403,8 +403,12 @@ read_admin_password() {
     [ -n "${f}" ] || fail "OSLS_E2E=1 requires OSLS_E2E_ADMIN_PASSWORD_FILE to be set."
     [ -f "${f}" ] && [ ! -L "${f}" ] \
       || fail "OSLS_E2E_ADMIN_PASSWORD_FILE must be a regular, non-symlink file: ${f}"
-    mode="$(stat -f '%Lp' "${f}" 2>/dev/null || stat -c '%a' "${f}" 2>/dev/null)" \
-      || fail "Unable to stat OSLS_E2E_ADMIN_PASSWORD_FILE: ${f}"
+    if mode="$(stat -c '%a' "${f}" 2>/dev/null)"; then
+      :
+    else
+      mode="$(stat -f '%Lp' "${f}" 2>/dev/null)" \
+        || fail "Unable to stat OSLS_E2E_ADMIN_PASSWORD_FILE: ${f}"
+    fi
     [ "${mode}" = "600" ] \
       || fail "OSLS_E2E_ADMIN_PASSWORD_FILE must be mode 0600 (got ${mode}): ${f}"
     value="$(cat "${f}")"
