@@ -74,7 +74,8 @@ what is already installed. Only the provider you select is included in the
 installation plan. When Bitwarden is installed, it also runs the read-only
 `bw status` check and reports whether Bitwarden is logged out, locked, or
 unlocked. It never logs in, asks for your master password, or stores a session
-key. For automation, pass the choice explicitly:
+key. The status check is bounded so a stuck provider CLI cannot pause the
+installer. For automation, pass the choice explicitly:
 
 ```sh
 scripts/install --password-manager bitwarden

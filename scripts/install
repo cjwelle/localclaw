@@ -112,12 +112,34 @@ report_prereq() {
   fi
 }
 
+bounded_command() {
+  # bounded_command <seconds> <command> [args...]
+  # Avoid a provider CLI hanging the prerequisite scan indefinitely.
+  local seconds="$1"; shift
+  if have perl; then
+    perl -e 'alarm shift; exec @ARGV' "${seconds}" "$@"
+  elif have python3; then
+    python3 - "${seconds}" "$@" <<'PY'
+import subprocess
+import sys
+
+seconds = int(sys.argv[1])
+raise SystemExit(subprocess.call(sys.argv[2:], timeout=seconds))
+PY
+  else
+    return 125
+  fi
+}
+
 report_bitwarden_session() {
   if ! have bw; then
     return 0
   fi
   local status_json status
-  status_json="$(bw status 2>/dev/null || true)"
+  if ! status_json="$(bounded_command 5 bw status 2>/dev/null)"; then
+    warn "Bitwarden session: status check timed out or failed; run 'bw status' manually"
+    return 0
+  fi
   status="$(printf '%s' "${status_json}" | sed -n 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
   case "${status}" in
     unlocked) ok "Bitwarden session: logged in and unlocked" ;;
