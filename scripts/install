@@ -329,11 +329,19 @@ plan_macos() {
       # every formula in the tap and an old broken formula can hang or fail
       # before LocalClaw has made any change.
       brew untap hashicorp/tap 2>/dev/null || true
-      if ! brew tap hashicorp/tap; then
-        warn "Homebrew could not import hashicorp/tap (often caused by an older Homebrew formula parser)."
+      tap_log="$(mktemp "${TMPDIR:-/tmp}/localclaw-tap.XXXXXX")" \
+        || fail "Could not create a temporary Homebrew tap log."
+      if ! brew tap hashicorp/tap >"${tap_log}" 2>&1; then
+        if grep -q 'vagrant\.rb' "${tap_log}"; then
+          warn "Ignoring the known broken hashicorp/tap vagrant.rb; Vault will be installed separately from that formula."
+        else
+          cat "${tap_log}" >&2
+          warn "Homebrew could not import hashicorp/tap."
+        fi
         run_step "update Homebrew" brew update
         run_step "repair hashicorp/tap" brew tap --repair
       fi
+      rm -f "${tap_log}"
     else
       # Plan mode must remain read-only and must not invoke any tap command.
       printf '    $ brew tap hashicorp/tap\n' >&2
