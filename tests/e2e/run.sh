@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 T="$(mktemp -d "${TMPDIR:-/tmp}/osls-e2e.XXXXXX")"
 trap 'rc=$?; if [ "$rc" -ne 0 ] && [ "${OSLS_E2E_KEEP:-}" = 1 ]; then echo "E2E temp retained: $T" >&2; else rm -rf "$T" 2>/dev/null || true; fi; exit "$rc"' EXIT INT TERM
 for b in bash python3 expect vault jq; do command -v "$b" >/dev/null 2>&1 || { echo "SKIP: missing $b" >&2; exit 0; }; done
-VPORT="${OSLS_E2E_PORT_BASE:-19200}"; GPORT="$((VPORT + 1))"; H="$T/home"; B="$T/bin"; mkdir -p "$H" "$B"
+VPORT="${OSLS_E2E_PORT_BASE:-19200}"; CPORT="$((VPORT + 1))"; GPORT="$((VPORT + 2))"; H="$T/home"; B="$T/bin"; mkdir -p "$H" "$B"
 cat >"$B/vault-e2e" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -67,7 +67,7 @@ export OSLS_E2E_VAULT_PORT="$VPORT" OSLS_E2E_OPENCLAW_PORT="$GPORT" OSLS_E2E_VAU
 bash "$ROOT/scripts/bootstrap" >/dev/null
 cat >"$H/.config/openclaw-secure-local-stack/stack.conf" <<EOF
 VAULT_PORT=$VPORT
-VAULT_CLUSTER_PORT=$((VPORT + 1))
+VAULT_CLUSTER_PORT=$CPORT
 VAULT_ADMIN_USER=e2e-admin
 VAULT_BIN=$B/vault-e2e
 OPENCLAW_BIN=$B/openclaw-e2e
