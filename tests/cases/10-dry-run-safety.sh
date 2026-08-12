@@ -11,15 +11,30 @@ STATE_DIR="${XDG_STATE_HOME}/localclaw"
 WORKSPACE_DIR="${HOME}/openclaw-workspace"
 SCRIPTS="$(scripts_dir)"
 
+# External tools can hang on a developer machine with a stale package-manager
+# or network-backed CLI. Keep this safety case diagnostic and bounded.
+run_bounded() {
+  local seconds="$1"; shift
+  if have perl; then
+    perl -e 'alarm shift; exec @ARGV' "${seconds}" "$@"
+  else
+    "$@"
+  fi
+}
+
+checkpoint() { printf '  [10-dry-run] %s\n' "$*" >&2; }
+
 # --- bootstrap --dry-run creates nothing -----------------------------------
-assert_ok "bootstrap --dry-run exits 0" bash "${SCRIPTS}/bootstrap" --dry-run
+checkpoint "bootstrap --dry-run"
+assert_ok "bootstrap --dry-run exits 0" run_bounded 15 bash "${SCRIPTS}/bootstrap" --dry-run
 assert_absent "bootstrap --dry-run left no config dir" "${CONFIG_DIR}"
 assert_absent "bootstrap --dry-run left no state dir" "${STATE_DIR}"
 assert_absent "bootstrap --dry-run left no workspace" "${WORKSPACE_DIR}"
 
 # --- help output is always safe and exits 0 --------------------------------
 for s in bootstrap install vault-bootstrap work-session backup restore uninstall; do
-  assert_ok "${s} --help exits 0" bash "${SCRIPTS}/${s}" --help
+  checkpoint "${s} --help"
+  assert_ok "${s} --help exits 0" run_bounded 15 bash "${SCRIPTS}/${s}" --help
 done
 
 # --- work-session --dry-run starts nothing, mints nothing ------------------
@@ -28,10 +43,12 @@ done
 # local Vault may hold 18200 on a developer Mac). So we assert exit 0 only when
 # the ports are free, but ALWAYS assert it created nothing.
 ports_free=1
-run_common port_is_listening 18200 && ports_free=0
-run_common port_is_listening 18789 && ports_free=0
+checkpoint "port probes"
+run_bounded 10 bash -c '. "$1" >/dev/null 2>&1; port_is_listening "$2"' _ "${COMMON_SH}" 18200 && ports_free=0
+run_bounded 10 bash -c '. "$1" >/dev/null 2>&1; port_is_listening "$2"' _ "${COMMON_SH}" 18789 && ports_free=0
 if [ "${ports_free}" -eq 1 ]; then
-  assert_ok "work-session --dry-run exits 0 (ports free)" bash "${SCRIPTS}/work-session" --dry-run
+  checkpoint "work-session --dry-run"
+  assert_ok "work-session --dry-run exits 0 (ports free)" run_bounded 15 bash "${SCRIPTS}/work-session" --dry-run
 else
   # Do not invoke work-session again here. We already know its first guarded
   # check will fail on the occupied port, and a second probe can block behind
@@ -53,13 +70,15 @@ case "${os}" in
   *)      t_skip "install plan: unsupported OS ${os}" ;;
 esac
 if [ "${run_plan}" -eq 1 ]; then
-  assert_ok "install (plan) exits 0" bash "${SCRIPTS}/install"
+  checkpoint "install plan"
+  assert_ok "install (plan) exits 0" run_bounded 30 bash "${SCRIPTS}/install"
 fi
 assert_absent "install plan left no config dir" "${CONFIG_DIR}"
 assert_absent "install plan left no state dir" "${STATE_DIR}"
 
 # --- uninstall plan (no --apply) changes nothing ---------------------------
-assert_ok "uninstall (plan) exits 0" bash "${SCRIPTS}/uninstall"
+checkpoint "uninstall plan"
+assert_ok "uninstall (plan) exits 0" run_bounded 15 bash "${SCRIPTS}/uninstall"
 assert_absent "uninstall plan created no config dir" "${CONFIG_DIR}"
 
 t_summary
