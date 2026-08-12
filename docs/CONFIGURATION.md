@@ -1,5 +1,8 @@
 # Configuration
 
+> New installations should follow [`SELF-HOSTING.md`](SELF-HOSTING.md) first.
+> This file is the reference for each non-secret setting and rendered file.
+
 All configuration is **non-secret** and lives outside the repository, under your
 XDG directories. Secrets never appear in any config file — they live in Vault.
 

@@ -1,5 +1,10 @@
 # Installation
 
+> **Start here if you want the full guided path:**
+> [`SELF-HOSTING.md`](SELF-HOSTING.md) walks from a fresh clone through Vault,
+> the first OpenClaw session, backups, tests, and GitLab automation. This file
+> remains the detailed prerequisite and platform reference.
+
 > **Official OpenClaw resources** (this repo is an independent hardening layer,
 > not a fork): project <https://openclaw.ai/> · install docs
 > <https://docs.openclaw.ai/install> · installer <https://openclaw.ai/install.sh>.

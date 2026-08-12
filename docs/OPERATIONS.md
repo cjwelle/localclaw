@@ -1,5 +1,9 @@
 # Operations
 
+> If this is a new machine, use [`SELF-HOSTING.md`](SELF-HOSTING.md) before
+> using this day-to-day runbook. It explains the first initialization and the
+> safe boundaries for automation.
+
 Day-to-day running of the stack. Everything here is foreground and
 operator-initiated — there is no unattended path.
 

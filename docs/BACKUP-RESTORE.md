@@ -1,5 +1,8 @@
 # Backup & Restore
 
+> New operators: start with [`SELF-HOSTING.md`](SELF-HOSTING.md), then return
+> here for the detailed age identity, archive, verification, and restore steps.
+
 Backups are **optional** and **off by default**. When enabled, the stack takes a
 consistent Vault Raft snapshot and writes **only age-encrypted ciphertext** to a
 directory you control. The private decryption key never lives in this repository.

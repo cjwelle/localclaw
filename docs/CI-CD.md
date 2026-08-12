@@ -1,5 +1,9 @@
 # CI/CD
 
+> New operators should read [`SELF-HOSTING.md`](SELF-HOSTING.md) first. This
+> document is the CI reference; [`GITLAB-SETUP.md`](GITLAB-SETUP.md) is the
+> runner-registration runbook.
+
 This project ships a GitLab pipeline ([`../.gitlab-ci.yml`](../.gitlab-ci.yml))
 and a local mirror ([`../scripts/ci-local`](../scripts/ci-local)) so the same
 checks run on your machine and in CI. Everything is designed to run on an
@@ -104,6 +108,14 @@ The E2E jobs run `tests/e2e/run.sh`. Each job creates a temporary loopback Vault
 starts the real `scripts/work-session` through a pseudo-terminal, verifies that
 a test secret reaches the gateway, and verifies that Vault and the gateway ports
 are closed during cleanup. No production Vault data is used by the harness.
+
+The harness deliberately avoids fixed ports. It asks Python for three free
+loopback ports and writes those values into the temporary `stack.conf`. The
+shared shell helper detects listeners with `lsof`, `ss`, or `netstat` when
+available and falls back to a Python TCP connect probe on minimal Ubuntu
+images. The E2E-only password-file permission check also uses the platform's
+available `stat` syntax. These details prevent a Linux container from being
+mistakenly reported as a Vault failure when Vault actually started correctly.
 
 That temporary Vault is **not** the same thing as the Vault a user sets up
 locally with `scripts/vault-bootstrap` (see the Quick Start in

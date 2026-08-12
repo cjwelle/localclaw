@@ -1,5 +1,9 @@
 # GitLab project and runners
 
+> For the end-to-end self-hosting sequence, read [`SELF-HOSTING.md`](SELF-HOSTING.md).
+> This file focuses on GitLab project creation, runners, and maintainer-only CI
+> configuration.
+
 This runbook prepares a new internal GitLab project and the two runners required
 by [`.gitlab-ci.yml`](../.gitlab-ci.yml): an untagged Docker executor for Ubuntu
 jobs and a native macOS shell executor tagged `macos`.
@@ -139,6 +143,15 @@ After the first push, confirm both runners are online in GitLab and verify that:
 The optional pinned gitleaks job can be enabled with the project CI/CD variable
 `RUN_GITLEAKS=true`. It is not required for the default pipeline.
 
+### Validate the E2E jobs specifically
+
+After the normal checks pass, play `e2e:macos` and `e2e:ubuntu` manually from
+the pipeline UI. Confirm both jobs show the Vault login step and finish with
+the lifecycle pass message. If Ubuntu reports that Vault did not start, first
+check that the checkout includes the runtime port allocator and Python listener
+probe in `tests/e2e/run.sh` and `scripts/lib/common.sh`; do not add a long-lived
+Vault token as a workaround.
+
 ## 6. Release
 
 Follow [`VERSIONING.md`](VERSIONING.md). A release requires an intentionally
@@ -157,4 +170,3 @@ git push origin main v0.2.0
 Use an unsigned annotated tag (`git tag -a`) only when the internal GitLab does
 not support the maintainer's signing workflow. The tag pipeline packages the
 release only after all required jobs pass.
-
