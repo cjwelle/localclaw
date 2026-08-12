@@ -73,7 +73,11 @@ if [ "${run_plan}" -eq 1 ]; then
   checkpoint "install plan"
   install_plan_log="${HOME}/localclaw-install-plan.log"
   printf '  [10-dry-run] running install plan (output captured; this step may be quiet; log: %s)\n' "${install_plan_log}" >&2
-  if run_bounded 30 bash "${SCRIPTS}/install" >"${install_plan_log}" 2>&1; then
+  # This is an automated safety check.  Pass the provider explicitly and close
+  # stdin so a terminal attached to the test runner cannot turn the installer
+  # into an interactive prompt waiting for Enter.
+  if run_bounded 30 bash "${SCRIPTS}/install" --password-manager none \
+      </dev/null >"${install_plan_log}" 2>&1; then
     t_pass "install (plan) exits 0"
     checkpoint "install plan complete"
   else
