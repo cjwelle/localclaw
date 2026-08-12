@@ -91,7 +91,8 @@ assert_absent "install plan left no state dir" "${STATE_DIR}"
 
 # --- uninstall plan (no --apply) changes nothing ---------------------------
 checkpoint "uninstall plan"
-assert_ok "uninstall (plan) exits 0" run_bounded 15 bash "${SCRIPTS}/uninstall"
+assert_ok "uninstall (plan) exits 0" run_bounded 15 bash "${SCRIPTS}/uninstall" </dev/null
+checkpoint "uninstall plan complete"
 assert_absent "uninstall plan created no config dir" "${CONFIG_DIR}"
 
 t_summary
