@@ -105,9 +105,10 @@ for case_file in "${CASES_DIR}"/*.sh; do
   mkdir -p "${case_home}"
   chmod 700 "${case_home}" 2>/dev/null || true
 
-  printf '[case] %s\n' "${case_name}"
+printf '[case] %s\n' "${case_name}"
   # Run the case in its own process with the sandbox environment. We scrub any
   # inherited Vault credentials so a case can never reach a real Vault.
+  printf '  starting isolated case process...\n'
   (
     HOME="${case_home}"
     XDG_CONFIG_HOME="${case_home}/.config"
@@ -116,9 +117,17 @@ for case_file in "${CASES_DIR}"/*.sh; do
     unset VAULT_TOKEN LOCAL_VAULT_TOKEN VAULT_ADDR VAULT_NAMESPACE \
           VAULT_CACERT VAULT_CAPATH VAULT_CLIENT_CERT VAULT_CLIENT_KEY 2>/dev/null || true
     export REPO_DIR COMMON_SH LIB_SH TESTS_VERBOSE
-    exec bash "${case_file}"
+    # Keep a broken external CLI or package-manager probe from freezing the
+    # entire suite. Perl is present on supported macOS installations; fall
+    # back to Bash when it is unavailable so the suite remains portable.
+    if command -v perl >/dev/null 2>&1; then
+      exec perl -e 'alarm 120; exec @ARGV' bash "${case_file}"
+    else
+      exec bash "${case_file}"
+    fi
   )
   status=$?
+  printf '  case process exited with status %d\n' "${status}"
   if [ "${status}" -ne 0 ]; then
     failed_cases=$((failed_cases + 1))
     printf '  ** case FAILED (exit %d)\n' "${status}"
