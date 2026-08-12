@@ -4,7 +4,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=lib/common.sh
+# shellcheck source=./scripts/lib/common.sh
 . "${SCRIPT_DIR}/lib/common.sh"
 load_stack_config
 
@@ -73,7 +73,11 @@ if [ -z "${TARGET}" ]; then
   current="$(git_at describe --tags --always 2>/dev/null || printf unknown)"
   printf 'remote: %s\nbranch: %s\ncurrent: %s\nlatest: %s\n' "${REMOTE}" "${branch}" "${current}" "${latest:-none}"
   if [ -n "${latest}" ] && git_at merge-base --is-ancestor HEAD "${latest}" 2>/dev/null; then
-    [ "$(git_at rev-parse HEAD)" = "$(git_at rev-parse "${latest}")" ] && ok "Already at ${latest}." || info "Update available: ${latest}"
+    if [ "$(git_at rev-parse HEAD)" = "$(git_at rev-parse "${latest}")" ]; then
+      ok "Already at ${latest}."
+    else
+      info "Update available: ${latest}"
+    fi
   else
     warn "No fast-forward release update is available from this checkout."
   fi
