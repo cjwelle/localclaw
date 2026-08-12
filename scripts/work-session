@@ -180,6 +180,24 @@ wait_for_port() {
 }
 
 # ---------------------------------------------------------------------------
+# E2E-only readiness barrier. tests/e2e/run.sh's Vault wrapper opens the port
+# immediately but configures auth/policies/the admin user asynchronously
+# afterward; wait for its readiness marker file so we never log in before
+# that setup has finished. Gated on OSLS_E2E=1, which is never set in a
+# production run (see read_admin_password in scripts/lib/common.sh).
+# ---------------------------------------------------------------------------
+wait_for_e2e_ready() {
+  local file="$1" pid="$2" i=0
+  while [ "${i}" -lt 80 ]; do
+    proc_alive "${pid}" || return 1
+    [ -e "${file}" ] && return 0
+    sleep 0.25
+    i=$((i + 1))
+  done
+  return 1
+}
+
+# ---------------------------------------------------------------------------
 # Sleep/suspend guard. If wall-clock jumps far between ticks (laptop sleep),
 # end the session rather than resume an unsealed Vault unattended.
 # ---------------------------------------------------------------------------
@@ -319,6 +337,14 @@ info "Starting isolated local Vault (loopback) as an owned child..."
 "${VAULT_START}" >"${session_tmp}/vault.log" 2>&1 &
 vault_pid=$!
 wait_for_port "${VAULT_PORT}" "${vault_pid}" || fail "Vault failed to start (see session log; removed on exit)."
+if [ "${OSLS_E2E:-}" = "1" ]; then
+  # Test-only: the E2E Vault wrapper finishes configuring auth/policies/the
+  # admin user after the port opens; wait for its readiness marker before
+  # proceeding. Never taken in production (OSLS_E2E is never set there).
+  [ -n "${OSLS_E2E_VAULT_READY_FILE:-}" ] || fail "OSLS_E2E=1 requires OSLS_E2E_VAULT_READY_FILE to be set."
+  wait_for_e2e_ready "${OSLS_E2E_VAULT_READY_FILE}" "${vault_pid}" \
+    || fail "E2E Vault setup readiness file not observed."
+fi
 vault_is_initialized || fail "Vault is not initialized. Run scripts/vault-bootstrap init first."
 
 # --- 2) Unseal (hidden prompts) --------------------------------------------
@@ -347,12 +373,25 @@ esac
 ok "Vault is unsealed."
 
 # --- 3) Admin login (hidden password on stdin; -no-store) -------------------
-admin_pw="$(read_secret "Password for admin user '${VAULT_ADMIN_USER}' (hidden)")"
+# read_admin_password is interactive (hidden prompt) unless OSLS_E2E=1 is
+# explicitly set, in which case it is a test-only noninteractive path used by
+# tests/e2e/run.sh (see scripts/lib/common.sh).
+admin_pw="$(read_admin_password "Password for admin user '${VAULT_ADMIN_USER}' (hidden)")"
 [ -n "${admin_pw}" ] || fail "No admin password entered."
-login_json="$(printf '%s' "${admin_pw}" | vault_local login \
-  -method=userpass -no-store -format=json \
-  "username=${VAULT_ADMIN_USER}" password=- 2>/dev/null)" \
-  || fail "Admin login failed. Check the username/password and that userpass is configured."
+if [ "${OSLS_E2E:-}" = "1" ]; then
+  # Test-only: authenticate via an explicit write to the userpass login
+  # endpoint instead of the `vault login` CLI method. Same auth backend and
+  # credentials; only the CLI surface differs, and the JSON response shape
+  # (`.auth.client_token`) is identical. Production never takes this branch.
+  login_json="$(printf '%s' "${admin_pw}" | vault_local write -format=json \
+    "auth/userpass/login/${VAULT_ADMIN_USER}" password=- 2>/dev/null)" \
+    || fail "Admin login failed. Check the username/password and that userpass is configured."
+else
+  login_json="$(printf '%s' "${admin_pw}" | vault_local login \
+    -method=userpass -no-store -format=json \
+    "username=${VAULT_ADMIN_USER}" password=- 2>/dev/null)" \
+    || fail "Admin login failed. Check the username/password and that userpass is configured."
+fi
 unset admin_pw
 admin_token="$(printf '%s' "${login_json}" | json_field '.auth.client_token')"
 unset login_json

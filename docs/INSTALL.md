@@ -21,6 +21,125 @@ scripts/install            # plan only (default): prints what it would do
 scripts/install --apply    # install missing tools after a typed confirmation
 ```
 
+## Quick Start
+
+New to this stack? This is the fastest path from a fresh clone to a working
+session. Each step is explained in more depth later in this file and in
+[`CONFIGURATION.md`](CONFIGURATION.md), [`OPERATIONS.md`](OPERATIONS.md), and
+[`SECURITY.md`](SECURITY.md) — read those before you trust this with real
+secrets. Run the commands below in order, from the repo root.
+
+1. **Clone the repo and enter it.**
+
+   ```sh
+   git clone <this-repo-url>
+   cd openclaw-secure-local-stack
+   ```
+
+2. **See what `scripts/install` would do, then let it install missing tools**
+   (§1–§3). It only prints a plan by default; `--apply` still requires you to
+   type `INSTALL` before it changes anything:
+
+   ```sh
+   scripts/install            # plan only — changes nothing
+   scripts/install --apply    # installs missing tools after a typed confirmation
+   ```
+
+3. **Install OpenClaw** from the official upstream sources (§4). This stack
+   wraps OpenClaw but does not install it for you.
+
+4. **Render your local config.** This creates your owner-only config/state
+   directories, seeds `stack.conf` and `secrets.map` from the shipped
+   samples (only if they don't already exist), and initializes the
+   work-memory database:
+
+   ```sh
+   scripts/bootstrap
+   ```
+
+5. **Edit `stack.conf` and `secrets.map`** for your setup (ports, KV mount
+   name, which provider keys get injected into the gateway). Both files live
+   under your `XDG_CONFIG_HOME`, never in the repo — see
+   [`CONFIGURATION.md`](CONFIGURATION.md) for every key and what it does.
+
+6. **Start Vault, then initialize and configure it yourself.** In one
+   terminal, start Vault and leave it running:
+
+   ```sh
+   scripts/vault-start
+   ```
+
+   In a second terminal:
+
+   ```sh
+   scripts/vault-bootstrap init       # prints the exact init/unseal commands for YOU to run
+   #   ...you run the printed `vault operator init` and `vault operator
+   #   unseal` commands yourself — read "Where do the root token and unseal
+   #   shares come from?" below before you do...
+   scripts/vault-bootstrap configure  # sets up the KV mount, policies, admin user, token roles
+   ```
+
+7. **Verify everything** with the read-only preflight:
+
+   ```sh
+   scripts/doctor
+   ```
+
+   Fix any `[FAIL]` line; `[WARN]` lines are advisory (e.g. backups not
+   configured yet).
+
+8. **Run the end-to-end test** to confirm the full lifecycle works on your
+   machine:
+
+   ```sh
+   tests/e2e/run.sh
+   ```
+
+   This does **not** touch the Vault you just initialized — see "The E2E test
+   uses a disposable Vault only" below.
+
+Once `scripts/doctor` is clean, start a normal work session with
+`scripts/work-session` (or `make work-session`) — see
+[`OPERATIONS.md`](OPERATIONS.md) for what it does at each step.
+
+### Where do the Vault root token and unseal shares come from?
+
+`scripts/vault-bootstrap init` never runs `vault operator init` for you — it
+only prints the exact command and lets **you** run it. When you do, Vault
+itself prints, once:
+
+- a **root token** (full admin access to this local Vault), and
+- `VAULT_KEY_SHARES` **unseal key shares** (default `5`), of which you must
+  supply `VAULT_KEY_THRESHOLD` of them (default `3`) to unseal Vault every
+  time it starts.
+
+Nothing in this repo — no script, no log, no database — ever sees or stores
+that output. Copy it immediately into a **password manager or other secure
+recovery location** you control, the same way you'd protect any other master
+credential. If you lose enough unseal shares to fall below the threshold and
+Vault ever seals again, your secrets are unrecoverable. Once
+`scripts/vault-bootstrap configure` has created your admin login and you've
+confirmed it works, revoke the root token with
+`scripts/vault-bootstrap revoke-root` and delete it from your password
+manager — keep the unseal shares.
+
+> **Future credential providers.** This stack has no built-in integration
+> with any specific password-manager product — you copy the root token,
+> unseal shares, and any `age` backup identity into whichever secret manager
+> you already use, by hand. **Bitwarden** used this way is the currently
+> supported/current pattern. Dedicated, optional integrations for
+> **1Password** and **LastPass** are planned but **not implemented yet** —
+> there is no scripted `op` or LastPass CLI workflow in this repo today.
+
+### The E2E test uses a disposable Vault only
+
+`tests/e2e/run.sh` starts its **own throwaway Vault** in dev mode on a
+loopback port it picks itself, seeded with a fixed, non-secret test password
+and a fixed test API key. It never reads your `stack.conf` or `secrets.map`,
+never talks to the Vault you initialized in step 6, and tears the whole thing
+down — Vault process, mock gateway, temporary `HOME` — when it exits. It is
+safe to run at any time, on any machine, including in CI.
+
 ## 1. Prerequisites
 
 | Tool | Purpose | Required? |

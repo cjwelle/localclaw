@@ -377,6 +377,35 @@ read_secret() {
   printf '%s' "${value}"
 }
 
+# ---------------------------------------------------------------------------
+# Admin password acquisition. Interactive (hidden prompt) by default. A
+# strictly test-only noninteractive path exists ONLY when OSLS_E2E=1 is
+# explicitly set in the environment (never true in a production run): the
+# password is read once from a caller-supplied file, which MUST be a regular,
+# non-symlink file with mode exactly 0600, and the file is deleted immediately
+# after being read. This exists because driving a hidden password prompt
+# through `expect` pattern-matching over a pty is unreliable in CI; it never
+# changes production authentication, which always uses the hidden prompt.
+# ---------------------------------------------------------------------------
+read_admin_password() {
+  local prompt="$1"
+  if [ "${OSLS_E2E:-}" = "1" ]; then
+    local f="${OSLS_E2E_ADMIN_PASSWORD_FILE:-}" mode value=""
+    [ -n "${f}" ] || fail "OSLS_E2E=1 requires OSLS_E2E_ADMIN_PASSWORD_FILE to be set."
+    [ -f "${f}" ] && [ ! -L "${f}" ] \
+      || fail "OSLS_E2E_ADMIN_PASSWORD_FILE must be a regular, non-symlink file: ${f}"
+    mode="$(stat -f '%Lp' "${f}" 2>/dev/null || stat -c '%a' "${f}" 2>/dev/null)" \
+      || fail "Unable to stat OSLS_E2E_ADMIN_PASSWORD_FILE: ${f}"
+    [ "${mode}" = "600" ] \
+      || fail "OSLS_E2E_ADMIN_PASSWORD_FILE must be mode 0600 (got ${mode}): ${f}"
+    value="$(cat "${f}")"
+    rm -f "${f}"
+    printf '%s' "${value}"
+    return 0
+  fi
+  read_secret "${prompt}"
+}
+
 # Create an owner-only temporary directory and print its path. Used for
 # short-lived staging (backups, restore, session logs) that must never be
 # world-readable.

@@ -16,6 +16,8 @@ For copy-ready project creation and runner registration commands, see
 | lint | `lint:shellcheck` | `make check` → `shellcheck -x` over every shipped script. |
 | test | `test:ubuntu` | Runs `tests/run.sh` in an `ubuntu:latest` container. |
 | test | `test:macos` | Runs the **same** `tests/run.sh` natively on a macOS shell runner. |
+| test | `e2e:ubuntu` | Scheduled/manual disposable Ubuntu lifecycle test, including Vault secret injection and cleanup. |
+| test | `e2e:macos` | Scheduled/manual native macOS lifecycle test on the shell runner. |
 | security | `secret-scan` | Self-contained scan for forbidden artifacts and secret-shaped content. |
 | security | `secret-scan:gitleaks` | Optional, pinned gitleaks scan (off by default). |
 | version | `version:verify` | `scripts/release verify` — SemVer format, and tag match on tags. |
@@ -95,6 +97,57 @@ container and on a Mac. Coverage:
 - `95-release-versioning` — `scripts/release` SemVer + tag gating, never runs git.
 
 Run a subset by name fragment: `tests/run.sh 50-restore 95-release`.
+
+## End-to-end tests and Vault
+
+The E2E jobs run `tests/e2e/run.sh`. Each job creates a temporary loopback Vault,
+starts the real `scripts/work-session` through a pseudo-terminal, verifies that
+a test secret reaches the gateway, and verifies that Vault and the gateway ports
+are closed during cleanup. No production Vault data is used by the harness.
+
+That temporary Vault is **not** the same thing as the Vault a user sets up
+locally with `scripts/vault-bootstrap` (see the Quick Start in
+[`INSTALL.md`](INSTALL.md)). This section is about a second, separate Vault —
+one that the project maintainer operates — that exists only to hand the CI
+job one disposable test API key before the job starts its own throwaway Vault.
+No contributor needs credentials for it; it is used only by the two `e2e:*`
+jobs, and only for the duration of the job.
+
+### How the CI job authenticates to that Vault (OIDC, no stored secret)
+
+Rather than storing a long-lived Vault token as a GitLab CI/CD variable, the
+`e2e:*` jobs use GitLab's **OIDC (OpenID Connect) identity federation**, at a
+high level:
+
+1. GitLab mints a short-lived, **project-scoped ID token** for the job (the
+   `id_tokens: VAULT_ID_TOKEN` block in `.gitlab-ci.yml`) — a signed JWT that
+   asserts facts like "this is a specific job, in this specific project, on
+   this specific ref," signed by GitLab's own OIDC issuer.
+2. The job's `before_script` presents that JWT to Vault's `auth/jwt/login`
+   endpoint (`vault write ... auth/jwt/login role=gitlab-openclaw-secure-local-stack-test jwt="$VAULT_ID_TOKEN"`),
+   requesting a specific Vault role.
+3. Vault's JWT auth method — configured by the Vault operator, not by
+   anything in this repo — is set up ahead of time to trust GitLab's OIDC
+   issuer and to bind that role to this exact project (`project_id=62`) with
+   a short token TTL. Vault only issues a token back if the JWT's claims
+   match what the role expects.
+4. The job uses the short-lived Vault token it gets back to read exactly one
+   field, `test_api_key`, from one path (`zivo/gitlab/test`), then
+   immediately `unset`s the token variable.
+5. That value is exported as `OSLS_E2E_EXPECTED_API_KEY` and handed, in
+   memory, to the disposable dev-mode Vault that `tests/e2e/run.sh` starts —
+   never written to the repository, a file, or CI logs.
+
+No static Vault token, password, or `hvs.` value lives in a GitLab CI/CD
+variable for this pipeline: GitLab's own signed job identity is the
+credential, and it stops working the moment the job ends. Setting this up on
+your own internal GitLab (issuer trust, the JWT auth method, and the
+project-bound role) is out of scope for this doc — it is operator
+infrastructure, not something `scripts/` in this repo configures.
+
+Configure one GitLab pipeline schedule for the default branch with a weekly
+interval to refresh the Ubuntu test pod and exercise both E2E jobs. The jobs are
+also available as manual actions for targeted runs.
 
 ## Releases
 
