@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# update - safely fast-forward an installed wrapper checkout to a GitHub tag.
+# Runtime config/state and the separately installed OpenClaw package are kept.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "${SCRIPT_DIR}/lib/common.sh"
+load_stack_config
+
+MODE="check"; TARGET=""; REMOTE="${OSLS_UPDATE_REMOTE:-}"; ALLOW_NO_BACKUP=0
+usage() {
+  cat >&2 <<EOF
+Usage: scripts/update [--check] [--to vMAJOR.MINOR.PATCH | --latest] [options]
+
+  --check              Fetch tags and report whether an update exists (default).
+  --to TAG             Apply exactly one canonical release tag, e.g. v1.0.1.
+  --latest             Apply the highest fetched canonical release tag.
+  --remote NAME        Git remote; default: OSLS_UPDATE_REMOTE, GitHub remote, origin.
+  --allow-no-backup    Explicitly override the encrypted-backup safety guard.
+  --help               Show this help.
+
+Apply mode refuses active listeners, dirty files, detached HEAD, and
+non-fast-forward changes. It never upgrades OpenClaw or deletes local state.
+EOF
+}
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --check) MODE="check" ;;
+    --to) [ "$(( $# ))" -ge 2 ] || fail "--to requires a tag"; MODE="apply"; TARGET="$2"; shift ;;
+    --latest) MODE="latest" ;;
+    --remote) [ "$(( $# ))" -ge 2 ] || fail "--remote requires a name"; REMOTE="$2"; shift ;;
+    --allow-no-backup) ALLOW_NO_BACKUP=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage; fail "Unknown argument: $1" ;;
+  esac
+  shift
+done
+is_release_tag() { printf '%s\n' "$1" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; }
+git_at() { git -C "${OSLS_REPO_DIR}" "$@"; }
+
+if [ -z "${REMOTE}" ]; then
+  for candidate in $(git_at remote 2>/dev/null); do
+    url="$(git_at remote get-url "${candidate}" 2>/dev/null || true)"
+    case "${url}" in *github.com*) REMOTE="${candidate}"; break ;; esac
+  done
+fi
+[ -n "${REMOTE}" ] || REMOTE="origin"
+git_at remote get-url "${REMOTE}" >/dev/null 2>&1 || fail "Git remote does not exist: ${REMOTE}"
+branch="$(git_at symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+[ -n "${branch}" ] || fail "Checkout is detached; check out the installed branch first."
+status="$(git_at status --porcelain 2>/dev/null)" || fail "Unable to inspect repository status."
+[ -z "${status}" ] || fail "Working tree is not clean; review local changes first."
+
+if [ "${MODE}" != "check" ]; then
+  if port_is_listening "${VAULT_PORT}" || port_is_listening "${OPENCLAW_PORT}"; then
+    fail "An active local Vault/OpenClaw listener was detected. Exit work-session first."
+  fi
+fi
+info "Fetching release tags from ${REMOTE}..."
+git_at fetch --tags --prune "${REMOTE}" || fail "Unable to fetch tags from ${REMOTE}."
+
+if [ "${MODE}" = "latest" ]; then
+  TARGET="$(git_at tag --list 'v*' --sort=-v:refname | while IFS= read -r tag; do
+    is_release_tag "${tag}" && { printf '%s\n' "${tag}"; break; }
+  done)"
+  [ -n "${TARGET}" ] || fail "No canonical release tags found on ${REMOTE}."
+fi
+if [ -z "${TARGET}" ]; then
+  latest="$(git_at tag --list 'v*' --sort=-v:refname | while IFS= read -r tag; do
+    is_release_tag "${tag}" && { printf '%s\n' "${tag}"; break; }
+  done)"
+  current="$(git_at describe --tags --always 2>/dev/null || printf unknown)"
+  printf 'remote: %s\nbranch: %s\ncurrent: %s\nlatest: %s\n' "${REMOTE}" "${branch}" "${current}" "${latest:-none}"
+  if [ -n "${latest}" ] && git_at merge-base --is-ancestor HEAD "${latest}" 2>/dev/null; then
+    [ "$(git_at rev-parse HEAD)" = "$(git_at rev-parse "${latest}")" ] && ok "Already at ${latest}." || info "Update available: ${latest}"
+  else
+    warn "No fast-forward release update is available from this checkout."
+  fi
+  exit 0
+fi
+is_release_tag "${TARGET}" || fail "Target must be canonical SemVer, e.g. v1.0.1: ${TARGET}"
+git_at rev-parse --verify --quiet "refs/tags/${TARGET}^{commit}" >/dev/null || fail "Release tag not found on ${REMOTE}: ${TARGET}"
+git_at merge-base --is-ancestor HEAD "${TARGET}" || fail "${TARGET} is not a fast-forward; refusing to rewrite history."
+
+backup_ok=0
+if [ -r "${OSLS_LAST_BACKUP_FILE}" ] && [ -n "${BACKUP_DIR}" ]; then
+  last_record="$(cat "${OSLS_LAST_BACKUP_FILE}" 2>/dev/null || true)"
+  last_name="${last_record#*|}"
+  [ "${last_name}" != "${last_record}" ] && [ -s "${BACKUP_DIR}/Daily/${last_name}" ] && backup_ok=1
+fi
+if [ "${backup_ok}" -ne 1 ] && [ "${ALLOW_NO_BACKUP}" -ne 1 ]; then
+  fail "No successful encrypted backup is recorded; configure backups or explicitly use --allow-no-backup."
+fi
+[ "${backup_ok}" -eq 1 ] || warn "Proceeding without verified backup evidence by explicit override."
+
+info "Fast-forwarding ${branch} to ${TARGET}..."
+git_at merge --ff-only "${TARGET}" || fail "Fast-forward failed."
+"${SCRIPT_DIR}/release" verify --tag "${TARGET}" || fail "VERSION/tag consistency check failed."
+"${SCRIPT_DIR}/doctor" || fail "Update completed, but doctor reported failures."
+ok "Wrapper updated to ${TARGET}."
+info "Vault data/config, workspace, memory, backups, and the OpenClaw package were preserved."
+info "Review the changelog, then start scripts/work-session manually."

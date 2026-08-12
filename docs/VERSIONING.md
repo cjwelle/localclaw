@@ -71,6 +71,16 @@ explicitly in the CHANGELOG.
    Ubuntu tests, and the macOS tests, then verifies `CI_COMMIT_TAG == v0.2.0`
    before building the release artifact and its checksums.
 
+## Updating an installed checkout
+
+Published canonical tags are the normal update inputs for existing machines.
+Run `scripts/update --check`, review the changelog, then apply an approved tag
+with `scripts/update --to vX.Y.Z`. The updater fast-forwards the wrapper
+checkout, preserves XDG config/state and the separately installed OpenClaw
+package, and runs the release/version and doctor checks afterward. It refuses
+dirty trees, active sessions, non-fast-forward history, and missing encrypted
+backup evidence unless the operator explicitly supplies `--allow-no-backup`.
+
 ## `scripts/release` reference
 
 ```text

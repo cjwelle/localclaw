@@ -254,6 +254,41 @@ only to its disposable local Vault. Follow [`CI-CD.md`](CI-CD.md) and
 [`GITLAB-SETUP.md`](GITLAB-SETUP.md) for runner registration and the exact
 operator verification checklist.
 
+## Step 11: update an existing installation
+
+Use a published GitHub release tag, not `main`, as the update source. First exit
+the work session and inspect available releases:
+
+```sh
+scripts/update --check
+```
+
+After reviewing the changelog and approving an exact tag, apply it:
+
+```sh
+scripts/update --to v1.0.1
+```
+
+The updater fetches tags, requires a clean checkout, refuses active listeners,
+requires evidence of an encrypted backup, fast-forwards only, verifies
+`VERSION` against the tag, and runs `doctor`. It updates wrapper code only: it
+preserves XDG config/state, Vault data, workspace, memory, backups, and the
+separately installed OpenClaw package. Review the result before starting:
+
+```sh
+scripts/work-session
+```
+
+For a new installation without backup evidence, the explicit escape hatch is:
+
+```sh
+scripts/update --to v1.0.1 --allow-no-backup
+```
+
+Use that only with deliberate operator approval. Automation may run
+`scripts/update --check`, but must not apply updates from `main`, update an
+active session, or silently bypass the backup guard.
+
 ## Automation checklist
 
 An unattended wrapper may run these safe checks:

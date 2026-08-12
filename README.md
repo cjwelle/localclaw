@@ -201,6 +201,7 @@ Day-to-day commands and troubleshooting live in
 │   ├── backup                    age-encrypted Vault snapshot backup (Daily/Weekly).
 │   ├── restore                   Inspect/restore a backup (read-only by default).
 │   ├── uninstall                 Remove generated config/tool files (plan by default).
+│   ├── update                    Safe fast-forward update to a release tag.
 │   ├── ci-local                  Run CI locally: native-host tests + explicit Docker/Ubuntu image.
 │   ├── release                   Version helper (VERSION + CHANGELOG only; never runs git).
 │   └── lib/common.sh             Shared, Bash-3.2-safe helpers.

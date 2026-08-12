@@ -65,6 +65,10 @@ restore: ## Inspect an encrypted backup (read-only). Pass ARGS='--identity <key>
 uninstall: ## Plan removal of generated config/tool files (read-only). Use scripts/uninstall --apply to apply.
 	@scripts/uninstall
 
+.PHONY: update
+update: ## Check for a GitHub release update. Use ARGS='--to vX.Y.Z' to apply.
+	@scripts/update $(ARGS)
+
 .PHONY: check
 check: ## Lint the shell scripts with shellcheck, if installed.
 ifeq ($(SHELLCHECK),)
@@ -73,7 +77,7 @@ else
 	@echo "Linting shell scripts with $(SHELLCHECK)..."
 	@$(SHELLCHECK) -x scripts/install scripts/bootstrap scripts/doctor \
 		scripts/vault-start scripts/vault-bootstrap scripts/work-session \
-		scripts/backup scripts/restore scripts/uninstall \
+		scripts/backup scripts/restore scripts/uninstall scripts/update \
 		scripts/ci-local scripts/release scripts/lib/common.sh
 endif
 
