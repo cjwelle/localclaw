@@ -1,4 +1,4 @@
-# openclaw-secure-local-stack — .gitignore
+# localclaw — .gitignore
 #
 # This repository must never contain secrets, runtime state, or a live
 # database. Rendered configuration and runtime data live OUTSIDE the repo

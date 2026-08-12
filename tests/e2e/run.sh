@@ -84,7 +84,7 @@ export HOME="$H" XDG_CONFIG_HOME="$H/.config" XDG_STATE_HOME="$H/.state" OSLS_E2
 mkdir -p "$OSLS_E2E_CLIENT_HOME"
 export OSLS_E2E_VAULT_PORT="$VPORT" OSLS_E2E_OPENCLAW_PORT="$GPORT" OSLS_E2E_VAULT_LOG="$T/vault.log" OSLS_E2E_MARKER="$T/marker" OSLS_E2E_REAL_VAULT="$(command -v vault)" OSLS_E2E_VAULT_READY_FILE="$T/vault-ready"
 bash "$ROOT/scripts/bootstrap" >/dev/null
-cat >"$H/.config/openclaw-secure-local-stack/stack.conf" <<EOF
+cat >"$H/.config/localclaw/stack.conf" <<EOF
 VAULT_PORT=$VPORT
 VAULT_CLUSTER_PORT=$CPORT
 VAULT_ADMIN_USER=e2e-admin
@@ -92,7 +92,7 @@ VAULT_BIN=$B/vault-e2e
 OPENCLAW_BIN=$B/openclaw-e2e
 OPENCLAW_PORT=$GPORT
 EOF
-printf '%s\n' 'TEST_API_KEY test/credential api_key' >"$H/.config/openclaw-secure-local-stack/secrets.map"
+printf '%s\n' 'TEST_API_KEY test/credential api_key' >"$H/.config/localclaw/secrets.map"
 bash "$ROOT/scripts/bootstrap" >/dev/null
 # Test-only noninteractive admin password injection (see read_admin_password
 # in scripts/lib/common.sh). Driving a hidden password prompt through expect

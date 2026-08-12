@@ -1,7 +1,7 @@
 # Security Policy
 
 This file is the vulnerability-reporting policy for the
-**openclaw-secure-local-stack** repository. For the stack's *security model*
+**localclaw** repository. For the stack's *security model*
 (how the running system protects secrets), see
 [`docs/SECURITY.md`](docs/SECURITY.md).
 

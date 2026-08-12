@@ -1,7 +1,7 @@
-# openclaw-secure-local-stack - non-secret stack configuration (SAMPLE).
+# localclaw - non-secret stack configuration (SAMPLE).
 #
 # Copy this file to:
-#   ${XDG_CONFIG_HOME:-$HOME/.config}/openclaw-secure-local-stack/stack.conf
+#   ${XDG_CONFIG_HOME:-$HOME/.config}/localclaw/stack.conf
 # (scripts/bootstrap does this for you) and edit the values below.
 #
 # This file MUST NOT contain secrets: no tokens, no unseal shares, no API

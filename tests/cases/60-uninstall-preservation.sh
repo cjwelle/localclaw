@@ -10,8 +10,8 @@
 # Confirmations are supplied on stdin (never via argv); no Vault is involved.
 . "${LIB_SH}"
 
-CONFIG_DIR="${XDG_CONFIG_HOME}/openclaw-secure-local-stack"
-STATE_DIR="${XDG_STATE_HOME}/openclaw-secure-local-stack"
+CONFIG_DIR="${XDG_CONFIG_HOME}/localclaw"
+STATE_DIR="${XDG_STATE_HOME}/localclaw"
 WORKSPACE_DIR="${HOME}/openclaw-workspace"
 VAULT_DATA_DIR="${STATE_DIR}/vault/data"
 MEMORY_DIR="${STATE_DIR}/memory"

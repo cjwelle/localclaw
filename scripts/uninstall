@@ -119,7 +119,7 @@ remove_target() {
 # ---------------------------------------------------------------------------
 # Report scope.
 # ---------------------------------------------------------------------------
-info "openclaw-secure-local-stack uninstall"
+info "localclaw uninstall"
 if [ "${APPLY}" -eq 1 ]; then
   info "Mode: APPLY (removals will run after confirmation)."
 else

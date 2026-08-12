@@ -30,7 +30,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-IMAGE="openclaw-secure-local-stack-ci:latest"
+IMAGE="localclaw-ci:latest"
 BASE_IMAGE="ubuntu:latest"
 DOCKERFILE="${REPO_DIR}/docker/Dockerfile.ci"
 

@@ -10,8 +10,8 @@ XDG directories. Secrets never appear in any config file — they live in Vault.
 
 | Purpose | Location |
 | --- | --- |
-| Editable config | `${XDG_CONFIG_HOME:-$HOME/.config}/openclaw-secure-local-stack/` |
-| Runtime state | `${XDG_STATE_HOME:-$HOME/.local/state}/openclaw-secure-local-stack/` |
+| Editable config | `${XDG_CONFIG_HOME:-$HOME/.config}/localclaw/` |
+| Runtime state | `${XDG_STATE_HOME:-$HOME/.local/state}/localclaw/` |
 | Templates (in repo) | `config/*.example`, `config/*.template`, `config/*.sample` |
 
 The config directory holds the rendered, editable files; the state directory
@@ -26,7 +26,7 @@ The single source of non-secret settings. Copy the example into your config
 directory and edit it:
 
 ```sh
-CFG="${XDG_CONFIG_HOME:-$HOME/.config}/openclaw-secure-local-stack"
+CFG="${XDG_CONFIG_HOME:-$HOME/.config}/localclaw"
 mkdir -p "$CFG" && chmod 700 "$CFG"
 cp config/stack.conf.example "$CFG/stack.conf"
 chmod 600 "$CFG/stack.conf"
@@ -106,7 +106,7 @@ Create the SQLite database from the schema (owner-only), then run the purge at
 the start of any session where you will read or write memory:
 
 ```sh
-STATE="${XDG_STATE_HOME:-$HOME/.local/state}/openclaw-secure-local-stack"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/localclaw"
 DB="$STATE/memory/work_memory.sqlite"
 mkdir -p "$(dirname "$DB")" && chmod 700 "$STATE" "$(dirname "$DB")"
 ( umask 077; sqlite3 "$DB" < sql/schema.sql )

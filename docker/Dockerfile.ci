@@ -1,4 +1,4 @@
-# docker/Dockerfile.ci - Ubuntu test image for openclaw-secure-local-stack.
+# docker/Dockerfile.ci - Ubuntu test image for localclaw.
 #
 # Purpose: a reproducible Linux environment to run the shell test-suite and the
 # shellcheck lint in CI and locally (scripts/ci-local). It installs ONLY the

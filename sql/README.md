@@ -3,7 +3,7 @@
 The stack keeps concise **operational memory** in a local SQLite database at:
 
 ```
-${XDG_STATE_HOME:-$HOME/.local/state}/openclaw-secure-local-stack/memory/work_memory.sqlite
+${XDG_STATE_HOME:-$HOME/.local/state}/localclaw/memory/work_memory.sqlite
 ```
 
 No live database file is committed to this repository. `scripts/bootstrap`

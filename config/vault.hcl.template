@@ -1,7 +1,7 @@
-# Vault server configuration for the openclaw-secure-local-stack.
+# Vault server configuration for the localclaw.
 #
 # This is a TEMPLATE. `scripts/bootstrap` renders it into
-#   ${XDG_CONFIG_HOME}/openclaw-secure-local-stack/vault.hcl
+#   ${XDG_CONFIG_HOME}/localclaw/vault.hcl
 # with the placeholders below replaced by values from your stack.conf.
 #
 # The listener is loopback-only, so TLS is disabled. Do NOT change the

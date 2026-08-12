@@ -30,7 +30,7 @@ Before configuring this workflow, confirm all of the following:
   or world-writable account.
 - One existing age key pair: the private identity stored in the provider, and
   its matching public recipient stored locally at
-  `${XDG_CONFIG_HOME:-$HOME/.config}/openclaw-secure-local-stack/vault-backup-age-recipient`.
+  `${XDG_CONFIG_HOME:-$HOME/.config}/localclaw/vault-backup-age-recipient`.
 - At least one `*.tar.gz.age` backup created with that same public recipient.
   A newly configured provider cannot verify an archive encrypted to a
   different key.
@@ -124,7 +124,7 @@ Backups use [age](https://age-encryption.org/) with an asymmetric identity:
 
 - The **public recipient** (`age1...`) is what the stack encrypts *to*. It is not
   secret; a copy is referenced locally at
-  `${XDG_CONFIG_HOME}/openclaw-secure-local-stack/vault-backup-age-recipient`.
+  `${XDG_CONFIG_HOME}/localclaw/vault-backup-age-recipient`.
 - The **private identity** decrypts backups. It is a secret. **Generate it
   outside this repository and store it in your secret manager.** Do not commit
   it; `.gitignore` blocks `*.agekey` / `*age-identity*` as defense in depth.
@@ -137,7 +137,7 @@ umask 077
 age-keygen -o openclaw-vault-backup.agekey     # contains the PRIVATE key
 # Extract the public recipient to reference locally:
 age-keygen -y openclaw-vault-backup.agekey > \
-  "${XDG_CONFIG_HOME:-$HOME/.config}/openclaw-secure-local-stack/vault-backup-age-recipient"
+  "${XDG_CONFIG_HOME:-$HOME/.config}/localclaw/vault-backup-age-recipient"
 ```
 
 Then move `openclaw-vault-backup.agekey` into your secret manager and remove the

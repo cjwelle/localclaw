@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# release - version helper for openclaw-secure-local-stack.
+# release - version helper for localclaw.
 #
 # VERSION (a bare X.Y.Z SemVer) is the single source of truth for the project
 # version. This tool NEVER runs git: it does not commit, tag, or push, and it

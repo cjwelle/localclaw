@@ -6,8 +6,8 @@
 # or workspace artifact exists. Nothing here needs a real Vault or credentials.
 . "${LIB_SH}"
 
-CONFIG_DIR="${XDG_CONFIG_HOME}/openclaw-secure-local-stack"
-STATE_DIR="${XDG_STATE_HOME}/openclaw-secure-local-stack"
+CONFIG_DIR="${XDG_CONFIG_HOME}/localclaw"
+STATE_DIR="${XDG_STATE_HOME}/localclaw"
 WORKSPACE_DIR="${HOME}/openclaw-workspace"
 SCRIPTS="$(scripts_dir)"
 

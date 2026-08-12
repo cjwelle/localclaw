@@ -1,4 +1,4 @@
--- openclaw-secure-local-stack - retention purge.
+-- localclaw - retention purge.
 --
 -- Deletes work-memory rows whose retention window has elapsed. Run this
 -- during an active, interactive session (there is deliberately NO unattended

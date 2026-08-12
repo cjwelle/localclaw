@@ -63,7 +63,7 @@ secrets. Run the commands below in order, from the repo root.
 
    ```sh
    git clone <this-repo-url>
-   cd openclaw-secure-local-stack
+   cd localclaw
    ```
 
 2. **See what `scripts/install` would do, then let it install missing tools**

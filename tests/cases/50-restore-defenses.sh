@@ -22,7 +22,7 @@ if ! have age || ! have age-keygen || ! have tar; then
   exit 0
 fi
 
-APP="openclaw-secure-local-stack"
+APP="localclaw"
 SCRIPTS="$(scripts_dir)"
 WORK="${HOME}/restore-work"
 mkdir -p "${WORK}"

@@ -162,7 +162,7 @@ The SQLite work memory holds **summaries only**. At the start of a session where
 you will read or write memory, run the purge (there is no scheduler):
 
 ```sh
-DB="${XDG_STATE_HOME:-$HOME/.local/state}/openclaw-secure-local-stack/memory/work_memory.sqlite"
+DB="${XDG_STATE_HOME:-$HOME/.local/state}/localclaw/memory/work_memory.sqlite"
 sqlite3 "$DB" < sql/purge_expired.sql
 ```
 

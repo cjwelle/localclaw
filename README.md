@@ -1,4 +1,12 @@
-# openclaw-secure-local-stack
+# LocalClaw
+
+Canonical repositories:
+
+- GitHub: <https://github.com/cjwelle/localclaw>
+- GitLab mirror/CI: <https://git.3rd.zone/zivo/localclaw>
+
+The `website/` directory contains the landing page deployed to
+<https://localclaw.bot>.
 
 Bootstrap a **secure, local-only OpenClaw workstation** — a single-operator AI
 coding/ops assistant that keeps its secrets in a local [HashiCorp Vault][vault],

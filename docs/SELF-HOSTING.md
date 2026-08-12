@@ -33,8 +33,8 @@ rendered runtime config in git, a ticket, a chat message, or a CI variable.
 ## Step 1: get the source
 
 ```sh
-git clone <repository-url> openclaw-secure-local-stack
-cd openclaw-secure-local-stack
+git clone <repository-url> localclaw
+cd localclaw
 ```
 
 Confirm the checkout is clean before you begin:
@@ -98,7 +98,7 @@ renders:
 Edit the two files intended for operators:
 
 ```sh
-CFG="${XDG_CONFIG_HOME:-$HOME/.config}/openclaw-secure-local-stack"
+CFG="${XDG_CONFIG_HOME:-$HOME/.config}/localclaw"
 $EDITOR "$CFG/stack.conf"
 $EDITOR "$CFG/secrets.map"
 ```

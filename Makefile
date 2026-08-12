@@ -1,4 +1,4 @@
-# openclaw-secure-local-stack — Makefile
+# localclaw — Makefile
 #
 # Thin, explicit wrappers around the scripts. NOTHING here installs software,
 # starts a background service, or touches secrets. Targets that would run a
@@ -15,7 +15,7 @@ SHELLCHECK := $(shell command -v shellcheck 2>/dev/null)
 
 .PHONY: help
 help: ## Show this help.
-	@echo "openclaw-secure-local-stack $(VERSION)"
+	@echo "localclaw $(VERSION)"
 	@echo
 	@echo "Usage: make <target>"
 	@echo
@@ -102,7 +102,7 @@ package: version-verify ## Build a versioned source archive and SHA-256 checksum
 	@rm -rf dist
 	@mkdir -p dist
 	@COPYFILE_DISABLE=1 tar --exclude=./.git --exclude=./dist \
-		-czf "dist/openclaw-secure-local-stack-$(VERSION).tar.gz" .
+		-czf "dist/localclaw-$(VERSION).tar.gz" .
 	@cd dist && if command -v sha256sum >/dev/null 2>&1; then \
 		sha256sum ./*.tar.gz > SHA256SUMS; \
 	else \

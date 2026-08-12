@@ -1,11 +1,11 @@
--- openclaw-secure-local-stack - work-memory schema.
+-- localclaw - work-memory schema.
 --
 -- This database stores concise OPERATIONAL SUMMARIES only. Never store
 -- credentials, tokens, unseal shares, private keys, secrets, or raw
 -- sensitive command output here.
 --
 -- Applied by scripts/bootstrap against:
---   ${XDG_STATE_HOME}/openclaw-secure-local-stack/memory/work_memory.sqlite
+--   ${XDG_STATE_HOME}/localclaw/memory/work_memory.sqlite
 -- No live database file ships in this repository.
 
 -- WAL improves read/write concurrency for an interactive session; the

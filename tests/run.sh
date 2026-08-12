@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/run.sh - dependency-light test runner for openclaw-secure-local-stack.
+# tests/run.sh - dependency-light test runner for localclaw.
 #
 # Runs every case in tests/cases/ against a THROWAWAY sandbox HOME. It NEVER
 # uses the operator's real HOME, real credentials, a real Vault, or the network.
@@ -83,7 +83,7 @@ case_matches() {
   return 1
 }
 
-printf '== openclaw-secure-local-stack test-suite ==\n'
+printf '== localclaw test-suite ==\n'
 printf 'repo:    %s\n' "${REPO_DIR}"
 printf 'sandbox: %s\n' "${SANDBOX_ROOT}"
 printf '\n'

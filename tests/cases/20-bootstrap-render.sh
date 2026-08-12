@@ -7,8 +7,8 @@
 # second run must be byte-for-byte idempotent: no rewrite, no new .bak files.
 . "${LIB_SH}"
 
-CONFIG_DIR="${XDG_CONFIG_HOME}/openclaw-secure-local-stack"
-STATE_DIR="${XDG_STATE_HOME}/openclaw-secure-local-stack"
+CONFIG_DIR="${XDG_CONFIG_HOME}/localclaw"
+STATE_DIR="${XDG_STATE_HOME}/localclaw"
 WORKSPACE_DIR="${HOME}/openclaw-workspace"
 VAULT_HCL="${CONFIG_DIR}/vault.hcl"
 OPENCLAW_JSON="${CONFIG_DIR}/openclaw.json"

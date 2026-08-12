@@ -18,7 +18,7 @@ Create a blank private project in the GitLab UI with no generated README,
 license, or `.gitignore`. Record its SSH URL, then run from the repository root:
 
 ```sh
-export GITLAB_SSH_URL='git@gitlab.example.com:group/openclaw-secure-local-stack.git'
+export GITLAB_SSH_URL='git@git.3rd.zone:zivo/localclaw.git'
 git remote add origin "$GITLAB_SSH_URL"
 git remote -v
 ```
@@ -29,7 +29,7 @@ creation command is:
 ```sh
 export GITLAB_HOST='gitlab.example.com'
 export GITLAB_NAMESPACE='group'
-glab repo create "$GITLAB_NAMESPACE/openclaw-secure-local-stack" \
+glab repo create "$GITLAB_NAMESPACE/localclaw" \
   --private --default-branch main --source . --remoteName origin
 ```
 
@@ -163,7 +163,7 @@ make check
 make test
 git add VERSION CHANGELOG.md
 git commit -m 'Release 0.2.0'
-git tag -s v0.2.0 -m 'openclaw-secure-local-stack 0.2.0'
+git tag -s v0.2.0 -m 'localclaw 0.2.0'
 git push origin main v0.2.0
 ```
 

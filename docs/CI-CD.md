@@ -136,7 +136,7 @@ high level:
    asserts facts like "this is a specific job, in this specific project, on
    this specific ref," signed by GitLab's own OIDC issuer.
 2. The job's `before_script` presents that JWT to Vault's `auth/jwt/login`
-   endpoint (`vault write ... auth/jwt/login role=gitlab-openclaw-secure-local-stack-test jwt="$VAULT_ID_TOKEN"`),
+   endpoint (`vault write ... auth/jwt/login role=gitlab-localclaw-test jwt="$VAULT_ID_TOKEN"`),
    requesting a specific Vault role.
 3. Vault's JWT auth method — configured by the Vault operator, not by
    anything in this repo — is set up ahead of time to trust GitLab's OIDC

@@ -36,7 +36,7 @@ assert_fail "backup dir cannot be the repo" \
   run_common validate_backup_dir "${REPO_DIR}/inside"
 # The state dir default is under XDG_STATE_HOME; a child of it must be refused.
 assert_fail "backup dir cannot be under runtime state" \
-  run_common validate_backup_dir "${XDG_STATE_HOME}/openclaw-secure-local-stack/sub"
+  run_common validate_backup_dir "${XDG_STATE_HOME}/localclaw/sub"
 assert_ok "accept a safe backup dir" \
   run_common validate_backup_dir "${HOME}/openclaw-backups"
 

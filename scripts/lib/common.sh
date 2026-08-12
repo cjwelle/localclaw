@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034 # shared variables are consumed by sourcing scripts
-# common.sh - shared helpers for the openclaw-secure-local-stack scripts.
+# common.sh - shared helpers for the localclaw scripts.
 #
 # This file is sourced, never executed. It is written to be portable across
 # Bash 3.2 (the macOS system Bash) and modern Bash. It intentionally avoids
@@ -14,7 +14,7 @@
 # ---------------------------------------------------------------------------
 set -o pipefail 2>/dev/null || true
 
-APP_NAME="openclaw-secure-local-stack"
+APP_NAME="localclaw"
 
 # ---------------------------------------------------------------------------
 # Paths. Every location is overridable through the environment so that the
