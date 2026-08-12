@@ -179,7 +179,11 @@ check_prerequisites() {
   # provider is included in the installation plan below.
   printf '%s\n' 'Password-manager CLI inventory:' >&2
   report_prereq "Bitwarden CLI (bw)" bw
-  report_bitwarden_session
+  if [ "${PASSWORD_MANAGER}" = bitwarden ]; then
+    report_bitwarden_session
+  else
+    info "Bitwarden session check skipped (select --password-manager bitwarden to check login state)"
+  fi
   report_prereq "1Password CLI (op)" op
   report_prereq "LastPass CLI (lpass)" lpass
   info "Selected password manager for installation: ${PASSWORD_MANAGER}"
