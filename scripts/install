@@ -11,7 +11,8 @@
 # first and only executed under --apply with a typed confirmation.
 #
 # It installs package-manager software:
-#   vault, sqlite3, age/age-keygen, jq, git, curl, tmux, tar, node/npm,
+#   vault, sqlite3, age/age-keygen, jq, git, curl, tmux, tar, checksum tools,
+#   and the selected password-manager CLI,
 #   and (optionally) shellcheck.
 # It then installs OpenClaw's official npm package from the `extended-stable`
 # dist-tag. It does NOT start any service, register a
@@ -20,6 +21,7 @@
 # Usage:
 #   scripts/install               # plan only (default): print what it would do
 #   scripts/install --apply       # actually install, after a typed confirmation
+#   scripts/install --password-manager 1password
 #   scripts/install --help
 set -uo pipefail
 
@@ -29,32 +31,56 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 load_stack_config
 
 APPLY=0
+PASSWORD_MANAGER="${CREDENTIAL_PROVIDER:-none}"
+PASSWORD_MANAGER_SET=0
 any=0   # set to 1 whenever a plan step proposes an install
 confirmed=0
 
 usage() {
   cat >&2 <<EOF
-Usage: scripts/install [--apply]
+Usage: scripts/install [--apply] [--password-manager none|bitwarden|1password|lastpass]
 
   (no flags)   Plan only. Detect OS, report present/missing tools, and print
                the exact commands that --apply would run. Makes no changes.
+  --password-manager PROVIDER
+               Select which password-manager CLI to check/install. If omitted,
+               ask interactively when a terminal is available; otherwise use
+               the configured provider or none.
   --apply      Run the install commands for missing tools after you type a
                confirmation. Never pipes downloads into a shell.
   --help       Show this help.
 
-Manages: vault, sqlite3, age, jq, git, curl, tmux, tar, node/npm, optional
-shellcheck, and OpenClaw's official npm extended-stable package.
+Manages: vault, sqlite3, age, jq, git, curl, tmux, tar, checksum tools,
+the selected password-manager CLI, optional shellcheck, and OpenClaw's
+official npm extended-stable package.
 EOF
 }
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1 ;;
+    --password-manager)
+      [ "$#" -ge 2 ] || { usage; fail "--password-manager requires a value"; }
+      PASSWORD_MANAGER="$2"; PASSWORD_MANAGER_SET=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) usage; fail "Unknown argument: $1" ;;
   esac
   shift
 done
+
+case "${PASSWORD_MANAGER}" in
+  none|bitwarden|1password|lastpass) : ;;
+  *) usage; fail "Unsupported password manager: ${PASSWORD_MANAGER}" ;;
+esac
+if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ -t 0 ]; then
+  printf 'Which password manager should OSLS support? [none/bitwarden/1password/lastpass] (none): ' >&2
+  IFS= read -r answer || answer=""
+  [ -n "${answer}" ] && PASSWORD_MANAGER="${answer}"
+  case "${PASSWORD_MANAGER}" in
+    none|bitwarden|1password|lastpass) : ;;
+    *) fail "Unsupported password manager: ${PASSWORD_MANAGER}" ;;
+  esac
+fi
 
 os="$(detect_os)"
 info "Detected operating system: ${os}"
@@ -141,6 +167,15 @@ plan_brew() {
   fi
 }
 
+plan_password_manager_brew() {
+  case "${PASSWORD_MANAGER}" in
+    none) info "No password-manager CLI selected" ;;
+    bitwarden) plan_brew bw bitwarden-cli "Bitwarden CLI" 1 ;;
+    1password) plan_brew op 1password-cli "1Password CLI" 1 ;;
+    lastpass) plan_brew lpass lastpass-cli "LastPass CLI" 1 ;;
+  esac
+}
+
 plan_macos() {
   have brew || fail "Homebrew (brew) is required on macOS but was not found. Install it from https://brew.sh/ first (review the instructions yourself; this script will not curl-pipe a shell)."
 
@@ -176,6 +211,8 @@ plan_macos() {
   plan_brew tmux     tmux   "tmux"     1
   # tar ships with macOS; only note if somehow absent.
   if need_tool tar; then plan_brew tar gnu-tar "tar" 1; else ok "tar: present"; fi
+  if have shasum || have sha256sum; then ok "checksum tool: present"; else plan_brew sha256sum coreutils "checksum tool" 1; fi
+  plan_password_manager_brew
 
   # ShellCheck is only for contributors.
   plan_brew shellcheck shellcheck "shellcheck" 0
@@ -210,12 +247,23 @@ plan_debian() {
 
   # Distro packages. Note the bin->package mapping: node/npm come from
   # 'nodejs' + 'npm'; everything else maps to a like-named package.
-  local pkgs="" t
+  local pkgs="" t arch="$(dpkg --print-architecture 2>/dev/null || printf amd64)"
   need_tool node && pkgs="${pkgs} nodejs"
   need_tool npm  && pkgs="${pkgs} npm"
   for t in sqlite3 jq git curl tmux age tar; do
     if need_tool "${t}"; then pkgs="${pkgs} ${t}"; fi
   done
+  if ! have shasum && ! have sha256sum; then pkgs="${pkgs} coreutils"; fi
+  case "${PASSWORD_MANAGER}" in
+    lastpass) need_tool lpass && pkgs="${pkgs} lastpass-cli" ;;
+    bitwarden) if need_tool bw; then info "Bitwarden CLI: missing -> install official npm CLI after Node/npm"; fi ;;
+    1password) if need_tool op; then
+      info "1Password CLI: missing -> will add the official 1Password apt repository"
+      printf '    $ curl -sS https://downloads.1password.com/linux/keys/1password.asc | gpg --dearmor | sudo tee /usr/share/keyrings/1password-archive-keyring.gpg >/dev/null\n' >&2
+      printf '    $ echo "deb [arch=%s signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/%s stable main" | sudo tee /etc/apt/sources.list.d/1password.list\n' "${arch}" "${arch}" >&2
+      printf '    $ sudo apt-get update && sudo apt-get install -y 1password-cli\n' >&2
+    fi ;;
+  esac
 
   if [ -n "${pkgs}" ]; then
     any=1
@@ -256,9 +304,27 @@ plan_debian() {
     for t in sqlite3 jq git curl tmux age tar; do
       need_tool "${t}" && install_list="${install_list} ${t}"
     done
+    if ! have shasum && ! have sha256sum; then install_list="${install_list} coreutils"; fi
+    if [ "${PASSWORD_MANAGER}" = lastpass ] && need_tool lpass; then install_list="${install_list} lastpass-cli"; fi
     if [ -n "${install_list}" ]; then
       # shellcheck disable=SC2086
       run_step "install packages" sudo apt-get install -y ${install_list}
+    fi
+    if [ "${PASSWORD_MANAGER}" = bitwarden ] && need_tool bw; then
+      have npm || fail "npm is required to install the Bitwarden CLI."
+      run_step "install Bitwarden CLI" npm install -g @bitwarden/cli
+    fi
+    if [ "${PASSWORD_MANAGER}" = 1password ] && need_tool op; then
+      have gpg || fail "gpg is required to install the 1Password CLI repository key."
+      case "${arch}" in amd64|arm64) : ;; *) fail "Unsupported Debian architecture for 1Password CLI: ${arch}" ;; esac
+      keyring_1p="/usr/share/keyrings/1password-archive-keyring.gpg"
+      curl -sS https://downloads.1password.com/linux/keys/1password.asc | gpg --dearmor | sudo tee "${keyring_1p}" >/dev/null \
+        || fail "Failed to install the 1Password repository key."
+      printf 'deb [arch=%s signed-by=%s] https://downloads.1password.com/linux/debian/%s stable main\n' "${arch}" "${keyring_1p}" "${arch}" \
+        | sudo tee /etc/apt/sources.list.d/1password.list >/dev/null \
+        || fail "Failed to add the 1Password apt source."
+      run_step "apt-get update (1Password repo)" sudo apt-get update
+      run_step "install 1Password CLI" sudo apt-get install -y 1password-cli
     fi
   fi
 
@@ -273,6 +339,14 @@ case "${os}" in
 esac
 
 plan_openclaw
+
+printf '\n== Password-manager selection ==\n' >&2
+case "${PASSWORD_MANAGER}" in
+  none) info "No password-manager CLI selected." ;;
+  bitwarden) info "Selected: Bitwarden CLI (bw)" ;;
+  1password) info "Selected: 1Password CLI (op)" ;;
+  lastpass) info "Selected: LastPass CLI (lpass)" ;;
+esac
 
 printf '\n' >&2
 if [ "${APPLY}" -eq 1 ]; then

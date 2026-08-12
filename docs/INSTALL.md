@@ -33,6 +33,24 @@ scripts/install --apply    # install missing tools after a typed confirmation
 ./osls update --check      # check release tags without changing anything
 ```
 
+During an interactive run, the installer asks which password manager you use
+(`none`, `bitwarden`, `1password`, or `lastpass`). It checks for that provider's
+CLI and includes it in the installation plan. For automation, pass the choice
+explicitly:
+
+```sh
+scripts/install --password-manager bitwarden
+scripts/install --apply --password-manager 1password
+```
+
+The installer also checks and installs the local backup prerequisites: `age`,
+`age-keygen`, Vault, `tar`, and a checksum utility (`shasum` or `sha256sum`).
+On Ubuntu, Bitwarden is installed through its official npm CLI package,
+LastPass through apt, and 1Password through its official signed apt repository
+when selected. On macOS, the selected provider CLI is
+installed with Homebrew. Provider account sign-in and MFA remain a separate,
+interactive step; the installer never asks for or stores those credentials.
+
 ## Quick Start
 
 New to this stack? This is the fastest path from a fresh clone to a working
