@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # install - platform-aware prerequisite installer for the local stack.
 #
-# SAFE BY DEFAULT. With no flags this script only PLANS: it detects your OS,
-# checks which prerequisites are already present, and PRINTS the exact package
-# manager commands it would run. It changes nothing until you pass --apply.
+# SAFE BY DEFAULT. With no flags this script only PLANS: it first inventories
+# every prerequisite, then prints the exact package-manager commands it would
+# run. It changes nothing until you pass --apply.
 #
 # It never pipes a network download into a shell (no `curl | sh`). On Debian/
 # Ubuntu it adds HashiCorp's apt repository the documented way (fetch the GPG
@@ -15,7 +15,7 @@
 #   and the selected password-manager CLI,
 #   and (optionally) shellcheck.
 # It then installs OpenClaw's official npm package from the `extended-stable`
-# dist-tag. It does NOT start any service, register a
+# dist-tag when it is missing. It does NOT start any service, register a
 # scheduler, initialize git, or touch your credentials.
 #
 # Usage:
@@ -73,7 +73,7 @@ case "${PASSWORD_MANAGER}" in
   *) usage; fail "Unsupported password manager: ${PASSWORD_MANAGER}" ;;
 esac
 if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ -t 0 ]; then
-  printf 'Which password manager should OSLS support? [none/bitwarden/1password/lastpass] (none): ' >&2
+  printf 'Which password manager should LOCALCLAW support? [none/bitwarden/1password/lastpass] (none): ' >&2
   IFS= read -r answer || answer=""
   [ -n "${answer}" ] && PASSWORD_MANAGER="${answer}"
   case "${PASSWORD_MANAGER}" in
@@ -89,6 +89,53 @@ if [ "${APPLY}" -eq 1 ]; then
 else
   info "Mode: PLAN (no changes will be made). Re-run with --apply to install."
 fi
+
+# Read-only inventory runs before any package-manager command. The complete
+# starting state is visible before an operator approves the apply phase.
+report_prereq() {
+  local label="$1" bin="$2"
+  if have "${bin}"; then
+    ok "${label}: present ($(command -v "${bin}"))"
+  else
+    warn "${label}: MISSING (apply will install it when supported)"
+  fi
+}
+
+check_prerequisites() {
+  local package_manager="apt-get"
+  [ "${os}" = macos ] && package_manager="brew"
+  printf '\n== Prerequisite check (read-only; before installation) ==\n' >&2
+  report_prereq "package manager" "${package_manager}"
+  report_prereq "Vault" vault
+  report_prereq "sqlite3" sqlite3
+  report_prereq "node" node
+  report_prereq "npm" npm
+  report_prereq "jq" jq
+  report_prereq "git" git
+  report_prereq "curl" curl
+  report_prereq "tmux" tmux
+  report_prereq "tar" tar
+  if have shasum || have sha256sum; then
+    ok "checksum tool: present"
+  else
+    warn "checksum tool (shasum/sha256sum): MISSING (apply will install it when supported)"
+  fi
+  if have age && have age-keygen; then
+    ok "age/age-keygen: present"
+  else
+    warn "age/age-keygen: MISSING (apply will install age)"
+  fi
+  report_prereq "OpenClaw" "${OPENCLAW_BIN}"
+  case "${PASSWORD_MANAGER}" in
+    none) info "password-manager CLI: none selected" ;;
+    bitwarden) report_prereq "Bitwarden CLI" bw ;;
+    1password) report_prereq "1Password CLI" op ;;
+    lastpass) report_prereq "LastPass CLI" lpass ;;
+  esac
+  info "Prerequisite check complete; no installation occurred during this phase."
+}
+
+check_prerequisites
 
 # A tool is "needed" only if its binary is not already on PATH.
 need_tool() { have "$1" && return 1 || return 0; }

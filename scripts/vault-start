@@ -13,12 +13,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "${SCRIPT_DIR}/lib/common.sh"
 load_stack_config
 
-[ -r "${OSLS_VAULT_HCL}" ] || fail "Rendered Vault config not found: ${OSLS_VAULT_HCL}. Run scripts/bootstrap first."
+[ -r "${LOCALCLAW_VAULT_HCL}" ] || fail "Rendered Vault config not found: ${LOCALCLAW_VAULT_HCL}. Run scripts/bootstrap first."
 have "${VAULT_BIN}" || fail "vault binary not found: ${VAULT_BIN}. Run scripts/install."
 
-ensure_private_dir "${OSLS_STATE_DIR}"
-ensure_private_dir "${OSLS_VAULT_DATA_DIR}"
-ensure_private_dir "${OSLS_VAULT_HOME}"
+ensure_private_dir "${LOCALCLAW_STATE_DIR}"
+ensure_private_dir "${LOCALCLAW_VAULT_DATA_DIR}"
+ensure_private_dir "${LOCALCLAW_VAULT_HOME}"
 
 # Clear any inherited Vault environment so a corporate config can never leak in.
 unset VAULT_ADDR VAULT_AGENT_ADDR VAULT_NAMESPACE VAULT_TOKEN \
@@ -27,5 +27,5 @@ unset VAULT_ADDR VAULT_AGENT_ADDR VAULT_NAMESPACE VAULT_TOKEN \
 umask 077
 info "Starting isolated local Vault on $(vault_addr) (foreground; Ctrl-C to stop)."
 # Isolate token-helper/CLI state from any corporate Vault by pinning HOME.
-export HOME="${OSLS_VAULT_HOME}"
-exec "${VAULT_BIN}" server -config="${OSLS_VAULT_HCL}"
+export HOME="${LOCALCLAW_VAULT_HOME}"
+exec "${VAULT_BIN}" server -config="${LOCALCLAW_VAULT_HCL}"

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Friendly command entry point for LocalClaw.
+set -uo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+case "${1:-}" in
+  install|doctor|update|credentials|bootstrap|vault-start|vault-bootstrap|work-session|restore|uninstall)
+    command="${ROOT}/scripts/${1}"; shift; exec "${command}" "$@" ;;
+  backup)
+    shift
+    case "${1:-}" in
+      verify) shift; exec "${ROOT}/scripts/credentials" backup-verify "$@" ;;
+      *) exec "${ROOT}/scripts/backup" "$@" ;;
+    esac ;;
+  ''|-h|--help)
+    cat <<EOF
+Usage: localclaw <command> [options]
+
+Commands: install, bootstrap, doctor, update, credentials, backup verify,
+          restore, vault-start, vault-bootstrap, work-session, uninstall.
+Run 'localclaw credentials --help' for password-manager setup.
+EOF
+    [ "${1:-}" = '' ] && exit 2 || exit 0 ;;
+  *) printf 'Unknown localclaw command: %s\n' "$1" >&2; exit 2 ;;
+esac

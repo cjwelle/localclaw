@@ -126,9 +126,9 @@ if [ -n "${STAGE_TO}" ]; then
   # A staging directory must be a safe, non-system, non-repo, non-state path.
   validate_safe_dir "${STAGE_TO}" "--stage-to directory"
   case "${STAGE_TO}" in
-    "${OSLS_REPO_DIR}"|"${OSLS_REPO_DIR}"/*)
+    "${LOCALCLAW_REPO_DIR}"|"${LOCALCLAW_REPO_DIR}"/*)
       fail "--stage-to must not live inside the repository: ${STAGE_TO}" ;;
-    "${OSLS_STATE_DIR}"|"${OSLS_STATE_DIR}"/*)
+    "${LOCALCLAW_STATE_DIR}"|"${LOCALCLAW_STATE_DIR}"/*)
       fail "--stage-to must not live inside the runtime state directory: ${STAGE_TO}" ;;
   esac
 fi
@@ -290,8 +290,8 @@ if [ "${DO_RESTORE_CONFIG}" -eq 1 ]; then
   warn "About to replace your LIVE config files with the archived copies."
   warn "Existing files are preserved as timestamped .bak first. Your secrets.map is NOT touched."
   require_typed_confirmation "restore config files" \
-    "Type 'restore config files' to overwrite live config in ${OSLS_CONFIG_DIR}"
-  ensure_private_dir "${OSLS_CONFIG_DIR}"
+    "Type 'restore config files' to overwrite live config in ${LOCALCLAW_CONFIG_DIR}"
+  ensure_private_dir "${LOCALCLAW_CONFIG_DIR}"
   _restore_one() {
     # _restore_one <archived-basename> <live-destination-path>
     local base="$1" dst="$2" src="${EXTRACT}/config/$1"
@@ -304,9 +304,9 @@ if [ "${DO_RESTORE_CONFIG}" -eq 1 ]; then
     chmod 600 "${dst}" 2>/dev/null || true
     ok "Restored ${base} -> ${dst}"
   }
-  _restore_one "vault.hcl"     "${OSLS_VAULT_HCL}"
-  _restore_one "stack.conf"    "${OSLS_STACK_CONF}"
-  _restore_one "openclaw.json" "${OSLS_OPENCLAW_JSON}"
+  _restore_one "vault.hcl"     "${LOCALCLAW_VAULT_HCL}"
+  _restore_one "stack.conf"    "${LOCALCLAW_STACK_CONF}"
+  _restore_one "openclaw.json" "${LOCALCLAW_OPENCLAW_JSON}"
   info "Live config restored. Review it before starting Vault."
 fi
 
@@ -329,7 +329,7 @@ warn "target Vault's entire data set with this snapshot. This cannot be undone."
 warn "Only proceed against an ISOLATED, loopback-only local Vault you control."
 
 # Refuse an inherited VAULT_TOKEN; require an explicit LOCAL_VAULT_TOKEN.
-if [ -n "${VAULT_TOKEN:-}" ] && [ -z "${OSLS_ALLOW_VAULT_TOKEN:-}" ]; then
+if [ -n "${VAULT_TOKEN:-}" ] && [ -z "${LOCALCLAW_ALLOW_VAULT_TOKEN:-}" ]; then
   fail "Refusing inherited VAULT_TOKEN. Unset it and pass LOCAL_VAULT_TOKEN instead."
 fi
 [ -n "${LOCAL_VAULT_TOKEN:-}" ] || fail "LOCAL_VAULT_TOKEN is required for --restore (a token permitted to restore snapshots)."

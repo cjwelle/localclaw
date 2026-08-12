@@ -69,9 +69,9 @@ uninstall: ## Plan removal of generated config/tool files (read-only). Use scrip
 update: ## Check for a GitHub release update. Use ARGS='--to vX.Y.Z' to apply.
 	@scripts/update $(ARGS)
 
-.PHONY: osls
-osls: ## Show the unified osls command help.
-	@./osls --help
+.PHONY: localclaw
+localclaw: ## Show the unified localclaw command help.
+	@./localclaw --help
 
 .PHONY: check
 check: ## Lint the shell scripts with shellcheck, if installed.
@@ -81,7 +81,7 @@ else
 	@echo "Linting shell scripts with $(SHELLCHECK)..."
 	@$(SHELLCHECK) -x scripts/install scripts/bootstrap scripts/doctor \
 		scripts/vault-start scripts/vault-bootstrap scripts/work-session \
-		scripts/backup scripts/restore scripts/uninstall scripts/update scripts/credentials osls \
+		scripts/backup scripts/restore scripts/uninstall scripts/update scripts/credentials localclaw \
 		scripts/ci-local scripts/release scripts/lib/common.sh
 endif
 
@@ -94,7 +94,7 @@ ci-local: ## Run the native-host CI checks (lint + tests). See scripts/ci-local 
 	@scripts/ci-local native
 
 .PHONY: version-verify
-version-verify: ## Validate VERSION (and, on a tag build, that CI_COMMIT_TAG == v<VERSION>).
+version-verify: ## Validate VERSION (and, on a tag build, that the release tag matches).
 	@scripts/release verify
 
 .PHONY: package

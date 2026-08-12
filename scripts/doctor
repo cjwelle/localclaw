@@ -22,10 +22,10 @@ note()  { printf '  [WARN] %s\n' "$*"; warn_count=$((warn_count + 1)); }
 head2() { printf '\n== %s ==\n' "$*"; }
 
 printf '%s doctor\n' "${APP_NAME}"
-printf 'repo:      %s\n' "${OSLS_REPO_DIR}"
-printf 'config:    %s\n' "${OSLS_CONFIG_DIR}"
-printf 'state:     %s\n' "${OSLS_STATE_DIR}"
-printf 'workspace: %s\n' "${OSLS_WORKSPACE_DIR}"
+printf 'repo:      %s\n' "${LOCALCLAW_REPO_DIR}"
+printf 'config:    %s\n' "${LOCALCLAW_CONFIG_DIR}"
+printf 'state:     %s\n' "${LOCALCLAW_STATE_DIR}"
+printf 'workspace: %s\n' "${LOCALCLAW_WORKSPACE_DIR}"
 
 head2 "Platform"
 os="$(detect_os)"
@@ -59,11 +59,11 @@ if have lsof || have ss || have netstat; then pass "found: port-probe tool (lsof
 else note "no lsof/ss/netstat found; port conflict checks will be skipped at runtime"; fi
 
 head2 "Configuration"
-if [ -r "${OSLS_STACK_CONF}" ]; then pass "stack.conf present"
-else note "stack.conf missing (run scripts/bootstrap): ${OSLS_STACK_CONF}"; fi
-if [ -r "${OSLS_VAULT_HCL}" ]; then pass "rendered vault.hcl present"
+if [ -r "${LOCALCLAW_STACK_CONF}" ]; then pass "stack.conf present"
+else note "stack.conf missing (run scripts/bootstrap): ${LOCALCLAW_STACK_CONF}"; fi
+if [ -r "${LOCALCLAW_VAULT_HCL}" ]; then pass "rendered vault.hcl present"
 else note "vault.hcl not rendered yet (run scripts/bootstrap)"; fi
-if [ -r "${OSLS_SECRETS_MAP}" ]; then pass "secrets.map present"
+if [ -r "${LOCALCLAW_SECRETS_MAP}" ]; then pass "secrets.map present"
 else note "secrets.map missing (run scripts/bootstrap)"; fi
 
 case "${CREDENTIAL_PROVIDER}" in
@@ -91,18 +91,18 @@ else
   note "BACKUP_DIR not set; encrypted backups are disabled until you set it in stack.conf"
 fi
 
-if [ -r "${OSLS_AGE_RECIPIENT_FILE}" ]; then
-  if grep -Eq '^age1[0-9a-z]+$' "${OSLS_AGE_RECIPIENT_FILE}"; then
+if [ -r "${LOCALCLAW_AGE_RECIPIENT_FILE}" ]; then
+  if grep -Eq '^age1[0-9a-z]+$' "${LOCALCLAW_AGE_RECIPIENT_FILE}"; then
     pass "age backup recipient (public key) present and well-formed"
   else
-    fault "age recipient file is malformed: ${OSLS_AGE_RECIPIENT_FILE}"
+    fault "age recipient file is malformed: ${LOCALCLAW_AGE_RECIPIENT_FILE}"
   fi
 else
   note "age backup recipient not configured; backups disabled until set (see scripts/bootstrap)"
 fi
 
 head2 "Permissions"
-for d in "${OSLS_CONFIG_DIR}" "${OSLS_STATE_DIR}"; do
+for d in "${LOCALCLAW_CONFIG_DIR}" "${LOCALCLAW_STATE_DIR}"; do
   if [ -d "${d}" ]; then
     # shellcheck disable=SC2012 # permissions are the desired ls output
     perms="$(ls -ld "${d}" | awk '{print $1}')"
@@ -114,9 +114,9 @@ for d in "${OSLS_CONFIG_DIR}" "${OSLS_STATE_DIR}"; do
     note "not created yet: ${d}"
   fi
 done
-if [ -f "${OSLS_MEMORY_DB}" ]; then
+if [ -f "${LOCALCLAW_MEMORY_DB}" ]; then
   # shellcheck disable=SC2012 # permissions are the desired ls output
-  perms="$(ls -l "${OSLS_MEMORY_DB}" | awk '{print $1}')"
+  perms="$(ls -l "${LOCALCLAW_MEMORY_DB}" | awk '{print $1}')"
   case "${perms}" in
     -rw-------*) pass "owner-only work-memory db (${perms})" ;;
     *) note "work-memory db is not owner-only (${perms})" ;;

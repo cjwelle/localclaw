@@ -2,7 +2,7 @@
 
 > **Start here if you want the full guided path:**
 > [`SELF-HOSTING.md`](SELF-HOSTING.md) walks from a fresh clone through Vault,
-> the first OpenClaw session, backups, tests, and GitLab automation. This file
+> the first OpenClaw session, backups, and tests. This file
 > remains the detailed prerequisite and platform reference.
 
 > **Official OpenClaw resources** (this repo is an independent hardening layer,
@@ -15,22 +15,28 @@ You can let `scripts/install` **plan** the setup for you (it prints the exact
 package-manager commands and changes nothing), or follow the manual commands in
 this guide. Either way, review each command before running it.
 
-`osls` is the recommended command entry point. It provides the same simple
+`localclaw` is the recommended command entry point. It provides the same simple
 install/update/doctor shape as OpenClaw while keeping this stack's explicit
 safety prompts. The underlying `scripts/*` commands remain available for
 automation and troubleshooting.
 
-`scripts/install` is safe by default: with no flags it only prints a plan.
-It installs anything **only** under `--apply`, after a typed `INSTALL`
-confirmation, and never by piping a download into a shell. It does not install
-OpenClaw (not in package managers — see §4), start a background service,
-register a scheduler, or touch your credentials.
+Environment overrides use the `LOCALCLAW_` prefix, for example
+`LOCALCLAW_CONFIG_DIR`, `LOCALCLAW_STATE_DIR`, `LOCALCLAW_WORKSPACE_DIR`, and
+`LOCALCLAW_UPDATE_REMOTE`.
+
+`scripts/install` is safe by default: it first performs a complete, read-only
+prerequisite check and then prints the installation plan. It installs missing
+supported tools and the official OpenClaw package **only** under `--apply`,
+after a typed `INSTALL` confirmation. It may require `sudo` on Ubuntu/Debian or
+administrator approval through Homebrew. It never pipes a download into a
+shell, does not start a background service or register a scheduler, and does
+not touch your credentials.
 
 ```sh
 scripts/install            # plan only (default): prints what it would do
 scripts/install --apply    # install missing tools after a typed confirmation
-./osls doctor              # read-only health check
-./osls update --check      # check release tags without changing anything
+./localclaw doctor              # read-only health check
+./localclaw update --check      # check release tags without changing anything
 ```
 
 During an interactive run, the installer asks which password manager you use
@@ -66,17 +72,21 @@ secrets. Run the commands below in order, from the repo root.
    cd localclaw
    ```
 
-2. **See what `scripts/install` would do, then let it install missing tools**
-   (§1–§3). It only prints a plan by default; `--apply` still requires you to
-   type `INSTALL` before it changes anything:
+2. **Check prerequisites, then install missing tools and services** (§1–§3).
+   The installer checks every required tool first, including the selected
+   password-manager CLI, and shows what is present or missing. It only prints a
+   plan by default; `--apply` asks you to type `INSTALL` before it installs
+   anything:
 
    ```sh
    scripts/install            # plan only — changes nothing
    scripts/install --apply    # installs missing tools after a typed confirmation
    ```
 
-3. **Install OpenClaw** from the official upstream sources (§4). This stack
-   wraps OpenClaw but does not install it for you.
+3. **Confirm OpenClaw is installed.** `scripts/install --apply` installs the
+   official `openclaw@extended-stable` npm package when it is missing. If you
+   prefer to install or change channels manually, follow §4 and the upstream
+   documentation.
 
 4. **Render your local config.** This creates your owner-only config/state
    directories, seeds `stack.conf` and `secrets.map` from the shipped
@@ -153,7 +163,7 @@ confirmed it works, revoke the root token with
 `scripts/vault-bootstrap revoke-root` and delete it from your password
 manager — keep the unseal shares.
 
-> **Password-manager adapters.** The optional `osls credentials` workflow
+> **Password-manager adapters.** The optional `localclaw credentials` workflow
 > supports Bitwarden, 1Password, and LastPass for retrieving the private age
 > identity during backup verification. It does not store provider passwords,
 > session tokens, or unseal shares. See the step-by-step setup in
@@ -190,7 +200,7 @@ safe to run at any time, on any machine, including in CI.
 ### Password-manager prerequisites
 
 The Bitwarden, 1Password, and LastPass integrations are optional. To use one,
-you must have all of the following before running `./osls credentials configure`:
+you must have all of the following before running `./localclaw credentials configure`:
 
 1. An active account with the provider you selected. The account must be able
    to read a secure note in its vault; organization-managed accounts must also
@@ -198,13 +208,13 @@ you must have all of the following before running `./osls credentials configure`
 2. The provider's official CLI installed and available on `PATH` (`bw`, `op`,
    or `lpass`).
 3. Your provider master password plus any required MFA, security key, or
-   desktop approval. OSLS does not bypass provider authentication.
+   desktop approval. LocalClaw does not bypass provider authentication.
 4. `age` and `age-keygen`, plus the local `vault`, `tar`, and checksum tools.
 5. An age private identity saved in the provider and its matching public
    recipient configured locally. The private identity must be a complete,
    single key—not a password, unseal share, or mixed note.
-6. A bootstrapped OSLS installation and at least one encrypted backup made with
-   that matching public recipient. Run `./osls doctor` before setup.
+6. A bootstrapped LocalClaw installation and at least one encrypted backup made with
+   that matching public recipient. Run `./localclaw doctor` before setup.
 
 The provider CLI may need network access on its first sign-in. Do not place
 provider passwords, session tokens, age private identities, or Vault unseal
@@ -278,8 +288,9 @@ attempts to detect an encrypted block device.
 
 ## 4. Install OpenClaw
 
-OpenClaw is a **separate upstream project**; this stack only wraps it. Always use
-the official sources for the canonical package name and installation steps:
+OpenClaw is a **separate upstream project**; this stack wraps it and can install
+the official npm package when it is missing. Always use the official sources
+for the canonical package name and installation steps:
 
 - Project: <https://openclaw.ai/>
 - Install docs: <https://docs.openclaw.ai/install>
@@ -288,7 +299,9 @@ the official sources for the canonical package name and installation steps:
 
 OpenClaw is not distributed through Homebrew or apt. After Node/npm is ready,
 the confirmed `scripts/install --apply` workflow installs the official npm
-package shown in the upstream documentation.
+package shown in the upstream documentation. The installer does not create a
+launchd/systemd service or run OpenClaw in the background; start sessions
+explicitly with the documented foreground workflow.
 
 ### Release channel
 

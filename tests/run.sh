@@ -48,7 +48,7 @@ export TESTS_VERBOSE
 # never touched. We refuse to run if we cannot get a private temp directory.
 # ---------------------------------------------------------------------------
 REAL_HOME="${HOME:-}"
-SANDBOX_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/osls-tests.XXXXXX")" \
+SANDBOX_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/localclaw-tests.XXXXXX")" \
   || { printf 'Unable to create a sandbox temp directory; refusing to run.\n' >&2; exit 1; }
 chmod 700 "${SANDBOX_ROOT}" 2>/dev/null || true
 

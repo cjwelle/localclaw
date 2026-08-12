@@ -3,7 +3,6 @@
 Canonical repositories:
 
 - GitHub: <https://github.com/cjwelle/localclaw>
-- GitLab mirror/CI: <https://git.3rd.zone/zivo/localclaw>
 
 The `website/` directory contains the landing page deployed to
 <https://localclaw.bot>.
@@ -37,7 +36,7 @@ database.
 > then run the reviewed copy. This project never curl-pipes a script into a
 > shell, and neither should you.
 
-> **Status: foundation (v0.1.0).** Use `./osls` as the unified install,
+> **Status: foundation (v0.1.0).** Use `./localclaw` as the unified install,
 > update, doctor, backup, and credential-adapter entry point. This repository ships documentation,
 > configuration templates, Vault policies, the SQL schema, workspace templates,
 > and the scripts: `install`, `bootstrap`, `vault-bootstrap`, the read-only
@@ -49,6 +48,9 @@ database.
 > [CHANGELOG.md](CHANGELOG.md)). Running these scripts still **does not** install
 > software without `--apply`, start background services, initialize git, or
 > handle your credentials for you.
+
+Environment overrides use the `LOCALCLAW_` prefix. Use the LocalClaw names
+documented in [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ---
 
@@ -116,7 +118,10 @@ Bash 4-only features. Exact tested OS versions are a
 
 ## Prerequisites
 
-You install these yourself (this project does not install anything for you):
+The installer checks these first and, when you run `scripts/install --apply`,
+installs any missing supported tools/services through Homebrew or apt. It asks
+for an explicit `INSTALL` confirmation before making changes and may require
+administrator permissions:
 
 - `vault` — HashiCorp Vault CLI/server
 - `sqlite3` — work-memory database
@@ -125,14 +130,16 @@ You install these yourself (this project does not install anything for you):
 - `age` and `age-keygen` — optional, for encrypted backups
 - `tar`, `shasum`/`sha256sum` — packaging and integrity
 - `openclaw` — the OpenClaw gateway/TUI from the official
-  [install docs](https://docs.openclaw.ai/install). The confirmed installer uses
+  [install docs](https://docs.openclaw.ai/install). The LocalClaw installer uses
   the `extended-stable` channel: `npm install -g openclaw@extended-stable`.
 - `shellcheck` — optional, for contributors
 
-`scripts/install` (plan only, or `--apply` to install) sets these up via your
-package manager. Run `make doctor` (or `scripts/doctor`) at any time — it is
-**read-only** and reports what is present, missing, and whether permissions are
-correct.
+`scripts/install` first performs a complete read-only prerequisite check. With
+no flag it prints the plan only; with `--apply` it installs missing tools and
+the OpenClaw package via your package manager after confirmation. It does not
+start background services or register them with launchd/systemd. Run `make
+doctor` (or `scripts/doctor`) at any time — it is **read-only** and reports
+what is present, missing, and whether permissions are correct.
 
 ## Quick start
 
@@ -185,7 +192,6 @@ Day-to-day commands and troubleshooting live in
 ├── CHANGELOG.md                  Release notes / roadmap.
 ├── VERSION                       Current version (0.1.0).
 ├── Makefile                      Thin wrappers: doctor, vault-start, backup, restore, uninstall, check, test, clean.
-├── .gitlab-ci.yml                CI/CD pipeline (lint, tests, secret scan, package, tag-gated release).
 ├── .gitignore / .editorconfig    Repo hygiene (secrets & state never tracked).
 ├── config/
 │   ├── stack.conf.example        Non-secret stack settings (copy & edit).
@@ -215,7 +221,7 @@ Day-to-day commands and troubleshooting live in
 │   ├── release                   Version helper (VERSION + CHANGELOG only; never runs git).
 │   └── lib/common.sh             Shared, Bash-3.2-safe helpers.
 ├── tests/                        Dependency-light suite (throwaway HOME; never real HOME/creds).
-│   ├── run.sh lib.sh             Runner + assertion helpers.
+│   ├── run.sh lib.sh             Test runner + assertion helpers.
 │   └── cases/                    Focused cases (syntax, dry-run, render, path-safety, retention, …).
 ├── docker/
 │   └── Dockerfile.ci             Ubuntu test image (Linux only; macOS runs natively — see docs/CI-CD.md).
@@ -232,8 +238,9 @@ Day-to-day commands and troubleshooting live in
 ## What this project deliberately does **not** do
 
 - It does not install packages without an explicit `--apply` (and a typed
-  confirmation), and never by piping a download into a shell. It does not start
-  background services or initialize git for you.
+  confirmation), and never by piping a download into a shell. It installs
+  missing supported prerequisites, but does not start background services or
+  initialize git for you.
 - It does not view, store, or transmit your unseal shares, recovery keys, root
   token, API keys, or private `age` identity.
 - It does not open any non-loopback listener or add TLS-less remote endpoints.
@@ -252,15 +259,11 @@ scripts/ci-local native    # run the native-host checks (lint + tests) as CI doe
 scripts/ci-local build && scripts/ci-local ubuntu   # explicit Ubuntu-in-Docker run
 ```
 
-CI runs on GitLab ([`.gitlab-ci.yml`](.gitlab-ci.yml)): shellcheck lint, the
-**Ubuntu** tests in a container, a self-contained **secret scan**, version
-verification, packaging, and — **only on a `vX.Y.Z` tag, after every gate
-passes** — the release artifact and checksums. **macOS is tested on a native
-GitLab shell runner tagged `macos`** (and locally via `scripts/ci-local
-native`): Docker cannot run macOS, so there is no macOS image and none is faked.
-See [`docs/CI-CD.md`](docs/CI-CD.md) and [`docs/VERSIONING.md`](docs/VERSIONING.md).
-Use [`docs/GITLAB-SETUP.md`](docs/GITLAB-SETUP.md) to create the internal GitLab
-project and register its Docker/Ubuntu and native macOS runners.
+Run the same checks locally with `make test`, `make check`, and
+[`scripts/ci-local`](scripts/ci-local). A sample CI configuration is included
+for providers that support shell checks, Ubuntu containers, secret scanning,
+packaging, and tag-gated releases. See [`docs/CI-CD.md`](docs/CI-CD.md) and
+[`docs/VERSIONING.md`](docs/VERSIONING.md).
 
 ## Security & support
 

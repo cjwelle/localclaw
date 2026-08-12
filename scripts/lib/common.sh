@@ -25,32 +25,32 @@ APP_NAME="localclaw"
 : "${XDG_CONFIG_HOME:=${HOME}/.config}"
 : "${XDG_STATE_HOME:=${HOME}/.local/state}"
 
-: "${OSLS_CONFIG_DIR:=${XDG_CONFIG_HOME}/${APP_NAME}}"
-: "${OSLS_STATE_DIR:=${XDG_STATE_HOME}/${APP_NAME}}"
-: "${OSLS_WORKSPACE_DIR:=${HOME}/openclaw-workspace}"
+: "${LOCALCLAW_CONFIG_DIR:=${XDG_CONFIG_HOME}/${APP_NAME}}"
+: "${LOCALCLAW_STATE_DIR:=${XDG_STATE_HOME}/${APP_NAME}}"
+: "${LOCALCLAW_WORKSPACE_DIR:=${HOME}/openclaw-workspace}"
 
 # Resolve the repository root from the location of this library. common.sh
 # lives in <repo>/scripts/lib/common.sh.
 _common_self="${BASH_SOURCE[0]:-$0}"
-OSLS_LIB_DIR="$(cd "$(dirname "${_common_self}")" && pwd)"
-OSLS_SCRIPTS_DIR="$(cd "${OSLS_LIB_DIR}/.." && pwd)"
-OSLS_REPO_DIR="$(cd "${OSLS_SCRIPTS_DIR}/.." && pwd)"
+LOCALCLAW_LIB_DIR="$(cd "$(dirname "${_common_self}")" && pwd)"
+LOCALCLAW_SCRIPTS_DIR="$(cd "${LOCALCLAW_LIB_DIR}/.." && pwd)"
+LOCALCLAW_REPO_DIR="$(cd "${LOCALCLAW_SCRIPTS_DIR}/.." && pwd)"
 unset _common_self
 
 # Generated runtime config files.
-OSLS_STACK_CONF="${OSLS_CONFIG_DIR}/stack.conf"
-OSLS_SECRETS_MAP="${OSLS_CONFIG_DIR}/secrets.map"
-OSLS_VAULT_HCL="${OSLS_CONFIG_DIR}/vault.hcl"
-OSLS_OPENCLAW_JSON="${OSLS_CONFIG_DIR}/openclaw.json"
-OSLS_AGE_RECIPIENT_FILE="${OSLS_CONFIG_DIR}/vault-backup-age-recipient"
-OSLS_LAST_BACKUP_FILE="${OSLS_CONFIG_DIR}/vault-backup-last-success"
+LOCALCLAW_STACK_CONF="${LOCALCLAW_CONFIG_DIR}/stack.conf"
+LOCALCLAW_SECRETS_MAP="${LOCALCLAW_CONFIG_DIR}/secrets.map"
+LOCALCLAW_VAULT_HCL="${LOCALCLAW_CONFIG_DIR}/vault.hcl"
+LOCALCLAW_OPENCLAW_JSON="${LOCALCLAW_CONFIG_DIR}/openclaw.json"
+LOCALCLAW_AGE_RECIPIENT_FILE="${LOCALCLAW_CONFIG_DIR}/vault-backup-age-recipient"
+LOCALCLAW_LAST_BACKUP_FILE="${LOCALCLAW_CONFIG_DIR}/vault-backup-last-success"
 
 # Runtime state.
-OSLS_VAULT_DATA_DIR="${OSLS_STATE_DIR}/vault/data"
-OSLS_VAULT_HOME="${OSLS_STATE_DIR}/vault/runtime-home"
-OSLS_MEMORY_DB="${OSLS_STATE_DIR}/memory/work_memory.sqlite"
-OSLS_LOG_DIR="${OSLS_STATE_DIR}/logs"
-OSLS_OPENCLAW_STATE_DIR="${OSLS_STATE_DIR}/openclaw"
+LOCALCLAW_VAULT_DATA_DIR="${LOCALCLAW_STATE_DIR}/vault/data"
+LOCALCLAW_VAULT_HOME="${LOCALCLAW_STATE_DIR}/vault/runtime-home"
+LOCALCLAW_MEMORY_DB="${LOCALCLAW_STATE_DIR}/memory/work_memory.sqlite"
+LOCALCLAW_LOG_DIR="${LOCALCLAW_STATE_DIR}/logs"
+LOCALCLAW_OPENCLAW_STATE_DIR="${LOCALCLAW_STATE_DIR}/openclaw"
 
 # ---------------------------------------------------------------------------
 # Non-secret stack defaults. These are overridden by stack.conf when present.
@@ -98,7 +98,7 @@ VAULT_BACKUP_ROLE="backup-session"
 # Output helpers. All diagnostics go to stderr so stdout stays clean for
 # machine-readable values when a caller wants them.
 # ---------------------------------------------------------------------------
-_osls_is_tty() { [ -t 2 ]; }
+_localclaw_is_tty() { [ -t 2 ]; }
 
 log()  { printf '%s\n' "$*" >&2; }
 info() { printf '[*] %s\n' "$*" >&2; }
@@ -138,7 +138,7 @@ vault_addr() { printf 'http://%s:%s\n' "${VAULT_HOST}" "${VAULT_PORT}"; }
 # `source` arbitrary shell, we parse a known allow-list of keys instead.
 # ---------------------------------------------------------------------------
 load_stack_config() {
-  local file="${1:-${OSLS_STACK_CONF}}"
+  local file="${1:-${LOCALCLAW_STACK_CONF}}"
   [ -r "${file}" ] || return 0
 
   local line key value
@@ -207,9 +207,9 @@ validate_backup_dir() {
   local dir="$1"
   validate_safe_dir "${dir}" "BACKUP_DIR"
   case "${dir}" in
-    "${OSLS_REPO_DIR}"|"${OSLS_REPO_DIR}"/*)
+    "${LOCALCLAW_REPO_DIR}"|"${LOCALCLAW_REPO_DIR}"/*)
       fail "BACKUP_DIR must not live inside the repository: ${dir}" ;;
-    "${OSLS_STATE_DIR}"|"${OSLS_STATE_DIR}"/*)
+    "${LOCALCLAW_STATE_DIR}"|"${LOCALCLAW_STATE_DIR}"/*)
       fail "BACKUP_DIR must not live inside the runtime state directory: ${dir}" ;;
   esac
   if [ -e "${dir}" ]; then
@@ -273,7 +273,7 @@ prune_to_count() {
   [ -d "${dir}" ] || { printf '0\n'; return 0; }
   case "${keep}" in ''|*[!0-9]*) fail "prune_to_count: keep must be numeric" ;; esac
 
-  listfile="$(mktemp "${TMPDIR:-/tmp}/osls-prune.XXXXXX")"
+  listfile="$(mktemp "${TMPDIR:-/tmp}/localclaw-prune.XXXXXX")"
   # -name matches the basename only, so directory paths with spaces are safe.
   find "${dir}" -maxdepth 1 -type f -name "${pattern}" 2>/dev/null \
     | LC_ALL=C sort -r > "${listfile}"
@@ -304,14 +304,14 @@ vault_env_reset() {
 # VAULT_TOKEN so a corporate token can never cross over.
 vault_local() {
   vault_env_reset
-  if [ -n "${VAULT_TOKEN:-}" ] && [ -z "${OSLS_ALLOW_VAULT_TOKEN:-}" ]; then
+  if [ -n "${VAULT_TOKEN:-}" ] && [ -z "${LOCALCLAW_ALLOW_VAULT_TOKEN:-}" ]; then
     fail "Refusing inherited VAULT_TOKEN. Unset it before using this stack."
   fi
   if [ -n "${LOCAL_VAULT_TOKEN:-}" ]; then
-    VAULT_TOKEN="${LOCAL_VAULT_TOKEN}" HOME="${OSLS_VAULT_HOME}" \
+    VAULT_TOKEN="${LOCAL_VAULT_TOKEN}" HOME="${LOCALCLAW_VAULT_HOME}" \
       "${VAULT_BIN}" "$@"
   else
-    HOME="${OSLS_VAULT_HOME}" VAULT_TOKEN="" "${VAULT_BIN}" "$@"
+    HOME="${LOCALCLAW_VAULT_HOME}" VAULT_TOKEN="" "${VAULT_BIN}" "$@"
   fi
 }
 
@@ -394,7 +394,7 @@ read_secret() {
 
 # ---------------------------------------------------------------------------
 # Admin password acquisition. Interactive (hidden prompt) by default. A
-# strictly test-only noninteractive path exists ONLY when OSLS_E2E=1 is
+# strictly test-only noninteractive path exists ONLY when LOCALCLAW_E2E=1 is
 # explicitly set in the environment (never true in a production run): the
 # password is read once from a caller-supplied file, which MUST be a regular,
 # non-symlink file with mode exactly 0600, and the file is deleted immediately
@@ -404,19 +404,19 @@ read_secret() {
 # ---------------------------------------------------------------------------
 read_admin_password() {
   local prompt="$1"
-  if [ "${OSLS_E2E:-}" = "1" ]; then
-    local f="${OSLS_E2E_ADMIN_PASSWORD_FILE:-}" mode value=""
-    [ -n "${f}" ] || fail "OSLS_E2E=1 requires OSLS_E2E_ADMIN_PASSWORD_FILE to be set."
+  if [ "${LOCALCLAW_E2E:-}" = "1" ]; then
+    local f="${LOCALCLAW_E2E_ADMIN_PASSWORD_FILE:-}" mode value=""
+    [ -n "${f}" ] || fail "LOCALCLAW_E2E=1 requires LOCALCLAW_E2E_ADMIN_PASSWORD_FILE to be set."
     [ -f "${f}" ] && [ ! -L "${f}" ] \
-      || fail "OSLS_E2E_ADMIN_PASSWORD_FILE must be a regular, non-symlink file: ${f}"
+      || fail "LOCALCLAW_E2E_ADMIN_PASSWORD_FILE must be a regular, non-symlink file: ${f}"
     if mode="$(stat -c '%a' "${f}" 2>/dev/null)"; then
       :
     else
       mode="$(stat -f '%Lp' "${f}" 2>/dev/null)" \
-        || fail "Unable to stat OSLS_E2E_ADMIN_PASSWORD_FILE: ${f}"
+        || fail "Unable to stat LOCALCLAW_E2E_ADMIN_PASSWORD_FILE: ${f}"
     fi
     [ "${mode}" = "600" ] \
-      || fail "OSLS_E2E_ADMIN_PASSWORD_FILE must be mode 0600 (got ${mode}): ${f}"
+      || fail "LOCALCLAW_E2E_ADMIN_PASSWORD_FILE must be mode 0600 (got ${mode}): ${f}"
     value="$(cat "${f}")"
     rm -f "${f}"
     printf '%s' "${value}"
@@ -429,7 +429,7 @@ read_admin_password() {
 # short-lived staging (backups, restore, session logs) that must never be
 # world-readable.
 make_secure_tmpdir() {
-  local label="${1:-osls}" base d
+  local label="${1:-localclaw}" base d
   base="${TMPDIR:-/tmp}"
   d="$(mktemp -d "${base%/}/${label}.XXXXXX")" || fail "Unable to create a secure temporary directory."
   chmod 700 "${d}" 2>/dev/null || true

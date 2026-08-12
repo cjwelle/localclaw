@@ -25,7 +25,7 @@ You need:
 - full-disk encryption enabled (FileVault on macOS, LUKS on Ubuntu when
   possible);
 - a secure place outside this repository for Vault recovery material;
-- network access only for installing packages, OpenClaw, and GitLab access.
+- network access only for installing packages and OpenClaw.
 
 Never put a Vault token, unseal share, API key, password, `age` private key, or
 rendered runtime config in git, a ticket, a chat message, or a CI variable.
@@ -58,8 +58,8 @@ scripts/install --apply
 ```
 
 The installer is plan-by-default. `--apply` requires an explicit confirmation;
-it does not install OpenClaw, start services, create credentials, or configure
-GitLab.
+it installs missing supported prerequisites and OpenClaw, but does not start
+services or create credentials.
 
 If you prefer to install manually, use [`INSTALL.md`](INSTALL.md). Install
 OpenClaw only from its official documentation:
@@ -236,23 +236,14 @@ Backups are optional and disabled until configured. Follow
 Never test restore against production data first. Inspect an archive with the
 read-only default before using any restore flag.
 
-## Step 10: connect GitLab CI safely
+## Step 10: connect continuous integration safely
 
-For a GitLab pipeline, set up two project runners and then configure the
-maintainer-only Vault side of the E2E credential flow. The CI job uses a
-short-lived GitLab OIDC ID token; it does not receive a static Vault token.
-
-The Vault role must:
-
-- trust the GitLab issuer and its current signing keys;
-- bind to the exact project ID and intended job claims;
-- have a short TTL;
-- attach a read-only policy for only the single E2E secret path.
-
-The job reads one field, unsets its temporary Vault token, and passes that value
-only to its disposable local Vault. Follow [`CI-CD.md`](CI-CD.md) and
-[`GITLAB-SETUP.md`](GITLAB-SETUP.md) for runner registration and the exact
-operator verification checklist.
+If you enable CI on your preferred provider, run the same local checks in an
+isolated job: shell linting, the dependency-light test suite, the disposable
+E2E test, secret scanning, and release verification. Use short-lived job
+identities or provider-managed secret storage when a job needs credentials.
+Never commit tokens or place long-lived Vault credentials in repository files.
+See [`CI-CD.md`](CI-CD.md) for the provider-neutral checklist.
 
 ## Step 11: update an existing installation
 
@@ -316,7 +307,7 @@ It must not automatically:
 | `Vault is sealed` | Vault needs the threshold of unseal shares | Run `vault operator unseal` interactively. |
 | `permission denied` | The current token lacks the required policy | Use the approved operator login; do not add broad policy automatically. |
 | `port is already in use` | Another process owns the configured listener | Inspect the port, stop only a process you own, then retry. |
-| E2E says a port is not listening on Ubuntu | The runner may lack common port tools | Confirm the checkout includes the Python socket fallback and rerun. |
+| E2E says a port is not listening on Ubuntu | The test environment may lack common port tools | Confirm the checkout includes the Python socket fallback and rerun. |
 | E2E says password file mode is invalid on Ubuntu | An older checkout used macOS-only `stat` flags | Update to the current checkout; the check now supports both `stat` variants. |
 | `BACKUP_DIR is not set` | Backups are intentionally disabled | Configure backups or accept the warning for a test-only session. |
 

@@ -61,7 +61,7 @@ make check      # shellcheck the scripts (install shellcheck first)
 make test       # dependency-light suite against a throwaway HOME (never real HOME/creds)
 ```
 
-For the full local CI mirror (including the Ubuntu-in-Docker run) use
+For the full local CI checks (including the Ubuntu-in-Docker run) use
 `scripts/ci-local`; see [`CI-CD.md`](CI-CD.md). New behavior needs a test in
 `tests/cases/`, and version changes go through `scripts/release`
 ([`VERSIONING.md`](VERSIONING.md)) — never hand-edit `VERSION` for a release.

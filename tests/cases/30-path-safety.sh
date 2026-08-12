@@ -30,7 +30,7 @@ assert_ok "accept a safe absolute path" run_common validate_safe_dir "${HOME}/op
 
 # --- validate_backup_dir additionally refuses repo and state dirs ----------
 # BACKUP_DIR must not live inside the repository or the runtime state directory.
-# We point OSLS_REPO_DIR/OSLS_STATE_DIR at known values via the environment the
+# We point LOCALCLAW_REPO_DIR/LOCALCLAW_STATE_DIR at known values via the environment the
 # subshell inherits (common.sh derives them, but also honors explicit values).
 assert_fail "backup dir cannot be the repo" \
   run_common validate_backup_dir "${REPO_DIR}/inside"

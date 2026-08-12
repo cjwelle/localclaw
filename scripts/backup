@@ -77,7 +77,7 @@ fi
 # validate_backup_dir refuses empty/relative/'..'/system dirs, /, HOME, the repo,
 # and the runtime state directory, and requires a writable dir if it exists.
 validate_backup_dir "${BACKUP_DIR}"
-validate_age_recipient_file "${OSLS_AGE_RECIPIENT_FILE}"
+validate_age_recipient_file "${LOCALCLAW_AGE_RECIPIENT_FILE}"
 
 # Retention counts must be plain non-negative integers.
 case "${BACKUP_KEEP_DAILY}"  in ''|*[!0-9]*) fail "BACKUP_KEEP_DAILY must be a number: ${BACKUP_KEEP_DAILY}" ;; esac
@@ -91,7 +91,7 @@ WEEKLY_GLOB='openclaw-vault-weekly-*.tar.gz.age'
 if [ "${DRY_RUN}" -eq 1 ]; then
   info "Backup dry run."
   ok "BACKUP_DIR is a safe destination: ${BACKUP_DIR}"
-  ok "age recipient present and well-formed: ${OSLS_AGE_RECIPIENT_FILE}"
+  ok "age recipient present and well-formed: ${LOCALCLAW_AGE_RECIPIENT_FILE}"
   info "Would write Daily/ and Weekly/ archives under BACKUP_DIR."
   info "Retention: keep newest ${BACKUP_KEEP_DAILY} daily and ${BACKUP_KEEP_WEEKLY} weekly archive(s)."
   info "Vault was not contacted and nothing was written."
@@ -111,18 +111,18 @@ vault_require_unsealed
 
 # Non-secret inputs that go INTO the archive. They must exist; refuse to make a
 # misleading backup that silently omits the config it claims to include.
-for f in "${OSLS_VAULT_HCL}" "${OSLS_STACK_CONF}" "${OSLS_OPENCLAW_JSON}"; do
+for f in "${LOCALCLAW_VAULT_HCL}" "${LOCALCLAW_STACK_CONF}" "${LOCALCLAW_OPENCLAW_JSON}"; do
   [ -r "${f}" ] || fail "Expected rendered config is missing: ${f}. Run scripts/bootstrap."
 done
-POLICY_DIR="${OSLS_REPO_DIR}/policies"
+POLICY_DIR="${LOCALCLAW_REPO_DIR}/policies"
 [ -d "${POLICY_DIR}" ] || fail "Policy directory missing: ${POLICY_DIR}"
 
 # ---------------------------------------------------------------------------
 # Once-per-day guard (unless --force). Records "YYYY-MM-DD|archive-name".
 # ---------------------------------------------------------------------------
 today="$(date +%Y-%m-%d)"
-if [ "${FORCE}" -eq 0 ] && [ -r "${OSLS_LAST_BACKUP_FILE}" ]; then
-  last_record="$(cat "${OSLS_LAST_BACKUP_FILE}" 2>/dev/null || true)"
+if [ "${FORCE}" -eq 0 ] && [ -r "${LOCALCLAW_LAST_BACKUP_FILE}" ]; then
+  last_record="$(cat "${LOCALCLAW_LAST_BACKUP_FILE}" 2>/dev/null || true)"
   last_date="${last_record%%|*}"
   last_name="${last_record#*|}"
   if [ -n "${last_name}" ] && [ "${last_name}" != "${last_record}" ] \
@@ -170,9 +170,9 @@ LOCAL_VAULT_TOKEN="${LOCAL_VAULT_TOKEN}" vault_local operator raft snapshot insp
 # 2) Non-secret config + policies. NOTE: secrets.map is intentionally excluded
 #    (it is non-secret, but the archive stays minimal per docs/BACKUP-RESTORE.md).
 #    We NEVER copy the live Raft data dir, tokens, or the private age identity.
-cp -p "${OSLS_VAULT_HCL}"     "${STAGE}/config/vault.hcl"
-cp -p "${OSLS_STACK_CONF}"    "${STAGE}/config/stack.conf"
-cp -p "${OSLS_OPENCLAW_JSON}" "${STAGE}/config/openclaw.json"
+cp -p "${LOCALCLAW_VAULT_HCL}"     "${STAGE}/config/vault.hcl"
+cp -p "${LOCALCLAW_STACK_CONF}"    "${STAGE}/config/stack.conf"
+cp -p "${LOCALCLAW_OPENCLAW_JSON}" "${STAGE}/config/openclaw.json"
 # Copy only the tracked *.hcl policy files.
 for p in "${POLICY_DIR}"/*.hcl; do
   [ -e "${p}" ] || continue
@@ -205,7 +205,7 @@ chmod 600 "${STAGE}/MANIFEST.txt" "${STAGE}/SHA256SUMS" 2>/dev/null || true
 # 4) Package + encrypt in a single stream: tar -> age. No plaintext tarball ever
 #    lands on disk; the only artifact is the ciphertext.
 info "Encrypting snapshot archive to the age recipient..."
-if ! tar -C "${STAGE}" -czf - . | "${AGE_BIN}" --encrypt -R "${OSLS_AGE_RECIPIENT_FILE}" --output "${ENC}"; then
+if ! tar -C "${STAGE}" -czf - . | "${AGE_BIN}" --encrypt -R "${LOCALCLAW_AGE_RECIPIENT_FILE}" --output "${ENC}"; then
   fail "Failed to package/encrypt the backup archive."
 fi
 [ -s "${ENC}" ] || fail "Encrypted backup is empty."
@@ -243,12 +243,12 @@ atomic_install "${ENC}" "${DAILY_DIR}"  "${archive_name}"
 atomic_install "${ENC}" "${WEEKLY_DIR}" "${weekly_name}"
 
 # 7) Record today's success (atomic) for the once-per-day guard.
-ensure_private_dir "$(dirname "${OSLS_LAST_BACKUP_FILE}")"
-last_tmp="$(mktemp "${OSLS_CONFIG_DIR}/.vault-backup-last.XXXXXX")" \
+ensure_private_dir "$(dirname "${LOCALCLAW_LAST_BACKUP_FILE}")"
+last_tmp="$(mktemp "${LOCALCLAW_CONFIG_DIR}/.vault-backup-last.XXXXXX")" \
   || fail "Unable to record last-backup marker."
 printf '%s|%s\n' "${today}" "${archive_name}" >"${last_tmp}"
 chmod 600 "${last_tmp}" 2>/dev/null || true
-mv -f "${last_tmp}" "${OSLS_LAST_BACKUP_FILE}"
+mv -f "${last_tmp}" "${LOCALCLAW_LAST_BACKUP_FILE}"
 
 # 8) Retention: keep the newest N in each dir. prune_to_count only ever removes
 #    files matching the encrypted-backup glob, newest-first, and never touches
