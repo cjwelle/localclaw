@@ -68,9 +68,10 @@ scripts/install --apply    # install missing tools after a typed confirmation
 ```
 
 During an interactive run, the installer asks which password manager you use
-(`none`, `bitwarden`, `1password`, or `lastpass`). It checks for that provider's
-CLI and includes it in the installation plan. For automation, pass the choice
-explicitly:
+(`none`, `bitwarden`, `1password`, or `lastpass`). The prerequisite report
+always checks all three supported CLIs (`bw`, `op`, and `lpass`) so you can see
+what is already installed. Only the provider you select is included in the
+installation plan. For automation, pass the choice explicitly:
 
 ```sh
 scripts/install --password-manager bitwarden

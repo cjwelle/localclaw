@@ -137,12 +137,14 @@ check_prerequisites() {
     warn "age/age-keygen: MISSING (apply will install age)"
   fi
   report_prereq "OpenClaw" "${OPENCLAW_BIN}"
-  case "${PASSWORD_MANAGER}" in
-    none) info "password-manager CLI: none selected" ;;
-    bitwarden) report_prereq "Bitwarden CLI" bw ;;
-    1password) report_prereq "1Password CLI" op ;;
-    lastpass) report_prereq "LastPass CLI" lpass ;;
-  esac
+  # Always inventory all supported CLIs so a non-interactive run cannot make
+  # an unselected provider look as though it was checked. Only the selected
+  # provider is included in the installation plan below.
+  printf '%s\n' 'Password-manager CLI inventory:' >&2
+  report_prereq "Bitwarden CLI (bw)" bw
+  report_prereq "1Password CLI (op)" op
+  report_prereq "LastPass CLI (lpass)" lpass
+  info "Selected password manager for installation: ${PASSWORD_MANAGER}"
   info "Prerequisite check complete; no installation occurred during this phase."
 }
 
