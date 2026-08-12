@@ -69,6 +69,10 @@ uninstall: ## Plan removal of generated config/tool files (read-only). Use scrip
 update: ## Check for a GitHub release update. Use ARGS='--to vX.Y.Z' to apply.
 	@scripts/update $(ARGS)
 
+.PHONY: osls
+osls: ## Show the unified osls command help.
+	@./osls --help
+
 .PHONY: check
 check: ## Lint the shell scripts with shellcheck, if installed.
 ifeq ($(SHELLCHECK),)
@@ -77,7 +81,7 @@ else
 	@echo "Linting shell scripts with $(SHELLCHECK)..."
 	@$(SHELLCHECK) -x scripts/install scripts/bootstrap scripts/doctor \
 		scripts/vault-start scripts/vault-bootstrap scripts/work-session \
-		scripts/backup scripts/restore scripts/uninstall scripts/update \
+		scripts/backup scripts/restore scripts/uninstall scripts/update scripts/credentials osls \
 		scripts/ci-local scripts/release scripts/lib/common.sh
 endif
 

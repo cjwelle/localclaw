@@ -1,5 +1,62 @@
 # Backup & Restore
 
+## Password-manager key retrieval (Bitwarden, 1Password, or LastPass)
+
+The encrypted backup recipient is public and stays in local configuration. The
+private age identity is recovery material and should live in one password
+manager. `osls backup verify` temporarily retrieves that identity, verifies the
+archive with the existing read-only restore verifier, then removes the
+temporary file. It does not restore Vault or replace configuration.
+
+### 1. Create one secure record
+
+Create a secure note in exactly one provider and paste the complete age private
+identity into its Notes/secure-text body. Use a clear name such as `OSLS backup
+identity`. Do not put the identity in Git, `stack.conf`, chat, or a normal text
+file. Keep Vault root/unseal material in separate records.
+
+### 2. Install the provider CLI
+
+Install the official native CLI using its vendor documentation, then confirm
+the command is on your `PATH`:
+
+```sh
+command -v bw       # Bitwarden
+command -v op       # 1Password
+command -v lpass    # LastPass
+```
+
+Use only one of these configuration commands. The reference is not the secret;
+it is the provider-specific pointer to the secure note.
+
+```sh
+./osls credentials configure --provider bitwarden --ref 'OSLS backup identity'
+./osls credentials configure --provider 1password --ref 'op://Private/OSLS-backup-identity/notes'
+./osls credentials configure --provider lastpass --ref 'OSLS backup identity'
+```
+
+The command writes only `CREDENTIAL_PROVIDER` and `BACKUP_IDENTITY_REF` to
+the owner-only local config. It never writes the private identity there.
+
+### 3. Verify a backup
+
+```sh
+./osls credentials status
+./osls backup verify /absolute/path/to/backup.tar.gz.age
+```
+
+Bitwarden and LastPass may prompt for their master password and MFA through
+their own CLI. Do not pass those values as command-line arguments. The adapter
+uses the native session briefly, removes the temporary age identity on success
+or failure, and locks/logs out the provider session it opened. 1Password uses
+the native `op read`/desktop-authentication flow and does not copy your
+1Password password into this stack.
+
+This workflow is intentionally limited to backup-key retrieval. Vault still
+requires the configured unseal threshold, and the operator must enter those
+shares manually during `scripts/work-session` or the documented bootstrap
+procedure.
+
 > New operators: start with [`SELF-HOSTING.md`](SELF-HOSTING.md), then return
 > here for the detailed age identity, archive, verification, and restore steps.
 

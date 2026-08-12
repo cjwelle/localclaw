@@ -66,6 +66,20 @@ else note "vault.hcl not rendered yet (run scripts/bootstrap)"; fi
 if [ -r "${OSLS_SECRETS_MAP}" ]; then pass "secrets.map present"
 else note "secrets.map missing (run scripts/bootstrap)"; fi
 
+case "${CREDENTIAL_PROVIDER}" in
+  none) note "no password-manager adapter configured (optional; see docs/BACKUP-RESTORE.md)" ;;
+  bitwarden)
+    if have bw; then pass "Bitwarden CLI present"; else note "Bitwarden CLI missing (configured provider)"; fi ;;
+  1password)
+    if have op; then pass "1Password CLI present"; else note "1Password CLI missing (configured provider)"; fi ;;
+  lastpass)
+    if have lpass; then pass "LastPass CLI present"; else note "LastPass CLI missing (configured provider)"; fi ;;
+  *) fault "unsupported CREDENTIAL_PROVIDER: ${CREDENTIAL_PROVIDER}" ;;
+esac
+if [ "${CREDENTIAL_PROVIDER}" != none ] && [ -z "${BACKUP_IDENTITY_REF}" ]; then
+  fault "BACKUP_IDENTITY_REF is empty for configured password-manager provider"
+fi
+
 if [ -n "${BACKUP_DIR}" ]; then
   if ( validate_backup_dir "${BACKUP_DIR}" ) 2>/dev/null; then
     pass "BACKUP_DIR is a safe path: ${BACKUP_DIR}"

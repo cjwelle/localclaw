@@ -27,6 +27,14 @@ OPENCLAW_BIN=openclaw
 AGE_BIN=age
 AGE_KEYGEN_BIN=age-keygen
 
+# --- Optional password-manager integration ---------------------------------
+# Supported values: none, bitwarden, 1password, lastpass.
+# These are non-secret settings only. The referenced item/record must contain
+# the age private identity in its Notes/secure-text field; never put the key in
+# this file. See docs/BACKUP-RESTORE.md for setup and the exact commands.
+CREDENTIAL_PROVIDER=none
+BACKUP_IDENTITY_REF=
+
 # --- Vault initialization guidance (used by vault-bootstrap init) ----------
 VAULT_KEY_SHARES=5
 VAULT_KEY_THRESHOLD=3

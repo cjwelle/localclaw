@@ -15,6 +15,11 @@ You can let `scripts/install` **plan** the setup for you (it prints the exact
 package-manager commands and changes nothing), or follow the manual commands in
 this guide. Either way, review each command before running it.
 
+`osls` is the recommended command entry point. It provides the same simple
+install/update/doctor shape as OpenClaw while keeping this stack's explicit
+safety prompts. The underlying `scripts/*` commands remain available for
+automation and troubleshooting.
+
 `scripts/install` is safe by default: with no flags it only prints a plan.
 It installs anything **only** under `--apply`, after a typed `INSTALL`
 confirmation, and never by piping a download into a shell. It does not install
@@ -24,6 +29,8 @@ register a scheduler, or touch your credentials.
 ```sh
 scripts/install            # plan only (default): prints what it would do
 scripts/install --apply    # install missing tools after a typed confirmation
+./osls doctor              # read-only health check
+./osls update --check      # check release tags without changing anything
 ```
 
 ## Quick Start
@@ -128,13 +135,11 @@ confirmed it works, revoke the root token with
 `scripts/vault-bootstrap revoke-root` and delete it from your password
 manager — keep the unseal shares.
 
-> **Future credential providers.** This stack has no built-in integration
-> with any specific password-manager product — you copy the root token,
-> unseal shares, and any `age` backup identity into whichever secret manager
-> you already use, by hand. **Bitwarden** used this way is the currently
-> supported/current pattern. Dedicated, optional integrations for
-> **1Password** and **LastPass** are planned but **not implemented yet** —
-> there is no scripted `op` or LastPass CLI workflow in this repo today.
+> **Password-manager adapters.** The optional `osls credentials` workflow
+> supports Bitwarden, 1Password, and LastPass for retrieving the private age
+> identity during backup verification. It does not store provider passwords,
+> session tokens, or unseal shares. See the step-by-step setup in
+> [`BACKUP-RESTORE.md`](BACKUP-RESTORE.md).
 
 ### The E2E test uses a disposable Vault only
 

@@ -67,6 +67,10 @@ OPENCLAW_BIN="openclaw"
 VAULT_BIN="vault"
 AGE_BIN="age"
 AGE_KEYGEN_BIN="age-keygen"
+# Optional password-manager adapter used only for short-lived backup-key
+# retrieval. The reference is provider-specific and is never secret by itself.
+CREDENTIAL_PROVIDER="none"
+BACKUP_IDENTITY_REF=""
 # Generic backup destination. Deliberately empty: the operator must choose a
 # directory (local or cloud-synced) during bootstrap. No tenant is baked in.
 BACKUP_DIR=""
@@ -165,6 +169,8 @@ load_stack_config() {
       VAULT_BIN)           VAULT_BIN="${value}" ;;
       AGE_BIN)             AGE_BIN="${value}" ;;
       AGE_KEYGEN_BIN)      AGE_KEYGEN_BIN="${value}" ;;
+      CREDENTIAL_PROVIDER) CREDENTIAL_PROVIDER="${value}" ;;
+      BACKUP_IDENTITY_REF) BACKUP_IDENTITY_REF="${value}" ;;
       BACKUP_DIR)          BACKUP_DIR="${value}" ;;
       VAULT_KEY_SHARES)    VAULT_KEY_SHARES="${value}" ;;
       VAULT_KEY_THRESHOLD) VAULT_KEY_THRESHOLD="${value}" ;;

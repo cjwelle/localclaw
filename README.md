@@ -29,7 +29,8 @@ database.
 > then run the reviewed copy. This project never curl-pipes a script into a
 > shell, and neither should you.
 
-> **Status: foundation (v0.1.0).** This repository ships documentation,
+> **Status: foundation (v0.1.0).** Use `./osls` as the unified install,
+> update, doctor, backup, and credential-adapter entry point. This repository ships documentation,
 > configuration templates, Vault policies, the SQL schema, workspace templates,
 > and the scripts: `install`, `bootstrap`, `vault-bootstrap`, the read-only
 > `doctor`, the foreground `vault-start`, the foreground session launcher

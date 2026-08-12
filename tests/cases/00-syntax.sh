@@ -16,6 +16,7 @@ scripts/backup
 scripts/restore
 scripts/uninstall
 scripts/update
+scripts/credentials
 scripts/lib/common.sh
 scripts/ci-local
 scripts/release
@@ -43,7 +44,7 @@ done
 for rel in scripts/install scripts/bootstrap scripts/vault-bootstrap \
            scripts/doctor scripts/vault-start scripts/work-session \
            scripts/backup scripts/restore scripts/uninstall scripts/update \
-           scripts/ci-local scripts/release tests/run.sh; do
+           scripts/ci-local scripts/release scripts/credentials osls tests/run.sh; do
   f="${REPO_DIR}/${rel}"
   if [ -x "${f}" ]; then t_pass "executable bit set: ${rel}"
   else t_fail "not executable: ${rel}"; fi
