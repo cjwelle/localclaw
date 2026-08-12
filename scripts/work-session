@@ -336,7 +336,12 @@ guard_pid=$!
 info "Starting isolated local Vault (loopback) as an owned child..."
 "${VAULT_START}" >"${session_tmp}/vault.log" 2>&1 &
 vault_pid=$!
-wait_for_port "${VAULT_PORT}" "${vault_pid}" || fail "Vault failed to start (see session log; removed on exit)."
+if ! wait_for_port "${VAULT_PORT}" "${vault_pid}"; then
+  if [ "${OSLS_E2E:-}" = "1" ] && [ -r "${session_tmp}/vault.log" ]; then
+    tail -40 "${session_tmp}/vault.log" >&2 || true
+  fi
+  fail "Vault failed to start (see session log; removed on exit)."
+fi
 if [ "${OSLS_E2E:-}" = "1" ]; then
   # Test-only: the E2E Vault wrapper finishes configuring auth/policies/the
   # admin user after the port opens; wait for its readiness marker before
