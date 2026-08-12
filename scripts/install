@@ -415,9 +415,14 @@ esac
 
 printf '\n' >&2
 if [ "${APPLY}" -eq 1 ]; then
-  ok "Install steps complete. Run 'scripts/doctor' to verify."
+  ok "Install steps complete."
+  info "Next steps:"
+  info "  1. Run './localclaw doctor' to verify the installation."
+  info "  2. Run './localclaw bootstrap' to create your owner-only config and state."
+  info "  3. Review and edit the generated stack.conf and secrets.map."
+  info "  4. Follow docs/INSTALL.md to initialize Vault, then run './localclaw setup' on future machines."
 else
   info "Plan complete. Nothing was changed. Re-run with --apply to install."
-  info "Then run 'scripts/doctor' to verify, and 'scripts/bootstrap' to set up config/state."
+  info "After installation, run './localclaw doctor', then './localclaw bootstrap' to set up config/state."
 fi
 exit 0
