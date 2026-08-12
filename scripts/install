@@ -268,7 +268,16 @@ plan_macos() {
     if brew tap 2>/dev/null | grep -qx 'hashicorp/tap'; then
       run_step "remove stale hashicorp/tap" brew untap hashicorp/tap
     fi
-    run_step "refresh hashicorp/tap" brew tap hashicorp/tap
+    if [ "${APPLY}" -eq 1 ]; then
+      if ! brew tap hashicorp/tap; then
+        warn "Homebrew could not import hashicorp/tap (often caused by an older Homebrew formula parser)."
+        run_step "update Homebrew" brew update
+        run_step "repair hashicorp/tap" brew tap --repair
+      fi
+    else
+      printf '    $ brew tap hashicorp/tap\n' >&2
+      printf '    # If tap import fails, run: brew update && brew tap --repair\n' >&2
+    fi
     run_step "install vault"      brew install hashicorp/tap/vault
   else
     ok "vault: present ($(command -v vault))"

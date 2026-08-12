@@ -287,6 +287,11 @@ brew untap hashicorp/tap 2>/dev/null || true
 brew tap hashicorp/tap
 brew install hashicorp/tap/vault
 
+# If the tap reports an unrelated formula-import error such as vagrant.rb:
+# brew update
+# brew tap --repair
+# brew install hashicorp/tap/vault
+
 # Runtime for OpenClaw, plus supporting CLI tools.
 brew install node jq git curl tmux
 
