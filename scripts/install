@@ -112,6 +112,21 @@ report_prereq() {
   fi
 }
 
+report_bitwarden_session() {
+  if ! have bw; then
+    return 0
+  fi
+  local status_json status
+  status_json="$(bw status 2>/dev/null || true)"
+  status="$(printf '%s' "${status_json}" | sed -n 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  case "${status}" in
+    unlocked) ok "Bitwarden session: logged in and unlocked" ;;
+    locked) warn "Bitwarden session: logged in but locked (run 'bw unlock')" ;;
+    unauthenticated) warn "Bitwarden session: not logged in (run 'bw login')" ;;
+    *) warn "Bitwarden session: unable to determine status; run 'bw status'" ;;
+  esac
+}
+
 check_prerequisites() {
   local package_manager="apt-get"
   [ "${os}" = macos ] && package_manager="brew"
@@ -142,6 +157,7 @@ check_prerequisites() {
   # provider is included in the installation plan below.
   printf '%s\n' 'Password-manager CLI inventory:' >&2
   report_prereq "Bitwarden CLI (bw)" bw
+  report_bitwarden_session
   report_prereq "1Password CLI (op)" op
   report_prereq "LastPass CLI (lpass)" lpass
   info "Selected password manager for installation: ${PASSWORD_MANAGER}"

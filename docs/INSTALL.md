@@ -71,12 +71,34 @@ During an interactive run, the installer asks which password manager you use
 (`none`, `bitwarden`, `1password`, or `lastpass`). The prerequisite report
 always checks all three supported CLIs (`bw`, `op`, and `lpass`) so you can see
 what is already installed. Only the provider you select is included in the
-installation plan. For automation, pass the choice explicitly:
+installation plan. When Bitwarden is installed, it also runs the read-only
+`bw status` check and reports whether Bitwarden is logged out, locked, or
+unlocked. It never logs in, asks for your master password, or stores a session
+key. For automation, pass the choice explicitly:
 
 ```sh
 scripts/install --password-manager bitwarden
 scripts/install --apply --password-manager 1password
 ```
+
+### Bitwarden login and unlock
+
+If the installer reports that Bitwarden is not logged in, authenticate with
+Bitwarden directly:
+
+```sh
+bw login
+```
+
+If it reports that Bitwarden is locked, unlock it interactively:
+
+```sh
+bw unlock
+```
+
+Then rerun `./localclaw doctor` or the installer. Complete any required MFA,
+security-key, or device approval yourself. Do not put the master password or
+`BW_SESSION` value in Git, `stack.conf`, logs, or documentation.
 
 The installer also checks and installs the local backup prerequisites: `age`,
 `age-keygen`, Vault, `tar`, and a checksum utility (`shasum` or `sha256sum`).
