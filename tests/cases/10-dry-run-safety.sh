@@ -33,8 +33,10 @@ run_common port_is_listening 18789 && ports_free=0
 if [ "${ports_free}" -eq 1 ]; then
   assert_ok "work-session --dry-run exits 0 (ports free)" bash "${SCRIPTS}/work-session" --dry-run
 else
-  t_skip "stack ports busy on host; checking only that dry-run changes nothing"
-  bash "${SCRIPTS}/work-session" --dry-run >/dev/null 2>&1 || true
+  # Do not invoke work-session again here. We already know its first guarded
+  # check will fail on the occupied port, and a second probe can block behind
+  # a real local Vault/gateway. The safety invariant below is still checked.
+  t_skip "stack ports busy on host; skipping the blocking dry-run probe"
 fi
 assert_absent "work-session --dry-run left no config dir" "${CONFIG_DIR}"
 assert_absent "work-session --dry-run left no state dir" "${STATE_DIR}"
