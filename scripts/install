@@ -231,9 +231,15 @@ plan_macos() {
   # Vault comes from the HashiCorp tap, not a plain formula.
   if need_tool vault; then
     any=1
-    info "vault: MISSING -> will install from the hashicorp/tap"
+    info "vault: MISSING -> will refresh hashicorp/tap, then install Vault"
     confirm_apply
-    run_step "tap hashicorp/tap"  brew tap hashicorp/tap
+    # Older Homebrew taps can contain formulas that fail to import (for
+    # example, a stale vagrant.rb) before Homebrew reaches Vault. Refresh only
+    # this tap; do not reset Homebrew or modify unrelated taps.
+    if brew tap 2>/dev/null | grep -qx 'hashicorp/tap'; then
+      run_step "remove stale hashicorp/tap" brew untap hashicorp/tap
+    fi
+    run_step "refresh hashicorp/tap" brew tap hashicorp/tap
     run_step "install vault"      brew install hashicorp/tap/vault
   else
     ok "vault: present ($(command -v vault))"

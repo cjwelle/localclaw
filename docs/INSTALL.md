@@ -239,7 +239,9 @@ the detailed setup and verification procedure in
 Install [Homebrew](https://brew.sh/) first if you do not have it, then:
 
 ```sh
-# Vault comes from HashiCorp's tap.
+# Vault comes from HashiCorp's tap. Refresh the tap first if an older local
+# copy reports an unrelated formula-import error such as vagrant.rb.
+brew untap hashicorp/tap 2>/dev/null || true
 brew tap hashicorp/tap
 brew install hashicorp/tap/vault
 
