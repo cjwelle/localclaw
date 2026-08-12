@@ -13,6 +13,11 @@ artifact names) is derived from or checked against it.
   `v0.1.0`). The tag pipeline refuses to publish unless `CI_COMMIT_TAG` equals
   `v$(cat VERSION)` **exactly**. For the current project that means the release
   tag must be **`v0.1.0`**.
+- **Canonical tags always use full SemVer.** A feature release is tagged like
+  `v1.0.0` or `v2.5.0`; a patch release is tagged like `v1.0.1` or `v2.5.1`.
+  Human-facing notes may describe `v1.0.1` as “1.0 patch 1,” but shorthand such
+  as `1.0-1` is never used as the git tag, `VERSION`, artifact version, or
+  release identifier.
 - **Normal pipelines only validate the format.** A push or merge-request
   pipeline checks that `VERSION` is a well-formed SemVer. It does **not** bump,
   tag, or publish anything.
