@@ -49,6 +49,11 @@ database.
 > software without `--apply`, start background services, initialize git, or
 > handle your credentials for you.
 
+For the guided one-command workflow, run `./localclaw setup`. It checks and
+installs prerequisites, checks for updates, bootstraps configuration, runs the
+read-only doctor, and executes the regression and disposable E2E tests. Use
+`./localclaw setup --apply-update` only after reviewing the update check.
+
 Environment overrides use the `LOCALCLAW_` prefix. Use the LocalClaw names
 documented in [`docs/INSTALL.md`](docs/INSTALL.md).
 

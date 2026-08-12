@@ -73,6 +73,10 @@ update: ## Check for a GitHub release update. Use ARGS='--to vX.Y.Z' to apply.
 localclaw: ## Show the unified localclaw command help.
 	@./localclaw --help
 
+.PHONY: setup
+setup: ## Run guided install/update-check/bootstrap/doctor/test setup.
+	@./localclaw setup
+
 .PHONY: check
 check: ## Lint the shell scripts with shellcheck, if installed.
 ifeq ($(SHELLCHECK),)

@@ -20,6 +20,18 @@ install/update/doctor shape as OpenClaw while keeping this stack's explicit
 safety prompts. The underlying `scripts/*` commands remain available for
 automation and troubleshooting.
 
+For a new machine, the guided command runs the full sequence in one flow:
+
+```sh
+./localclaw setup
+```
+
+It checks and installs prerequisites, checks for a release update, bootstraps
+configuration, runs `doctor`, the regression suite, and the disposable E2E
+lifecycle test. It does not apply a code update unless you explicitly pass
+`--apply-update`; review the update check first. Use `--skip-tests` or
+`--skip-e2e` only when you have a specific reason.
+
 Environment overrides use the `LOCALCLAW_` prefix, for example
 `LOCALCLAW_CONFIG_DIR`, `LOCALCLAW_STATE_DIR`, `LOCALCLAW_WORKSPACE_DIR`, and
 `LOCALCLAW_UPDATE_REMOTE`.
