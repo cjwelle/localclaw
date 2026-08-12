@@ -123,6 +123,13 @@ Bash 4-only features. Exact tested OS versions are a
 
 ## Prerequisites
 
+Before running the installer, install the bootstrap tools: **Git** on every
+platform, and **Homebrew on macOS**. Use the official Git instructions at
+<https://git-scm.com/downloads>; on macOS, Apple's Command Line Tools also
+provide Git (`xcode-select --install`). Install Homebrew from
+<https://brew.sh/>. LocalClaw does not install either bootstrap tool for you.
+Ubuntu/Debian uses `apt` for the remaining prerequisites.
+
 The installer checks these first and, when you run `scripts/install --apply`,
 installs any missing supported tools/services through Homebrew or apt. It asks
 for an explicit `INSTALL` confirmation before making changes and may require

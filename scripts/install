@@ -84,6 +84,17 @@ fi
 
 os="$(detect_os)"
 info "Detected operating system: ${os}"
+
+# Bootstrap prerequisites: Homebrew is the macOS package-manager entry point,
+# and Git is needed to obtain/update the repository. Fail before any package
+# manager action so a fresh machine gets a clear next step.
+if [ "${os}" = macos ] && ! have brew; then
+  fail "Homebrew is required before running LocalClaw on macOS. Install it from https://brew.sh/ (review the official instructions), then rerun this command."
+fi
+if ! have git; then
+  fail "Git is required before running LocalClaw. Install it from https://git-scm.com/downloads or, on macOS, install Apple's Command Line Tools with 'xcode-select --install', then rerun this command."
+fi
+
 if [ "${APPLY}" -eq 1 ]; then
   info "Mode: APPLY (commands will run after confirmation)."
 else

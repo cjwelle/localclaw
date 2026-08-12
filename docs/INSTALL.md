@@ -32,6 +32,22 @@ lifecycle test. It does not apply a code update unless you explicitly pass
 `--apply-update`; review the update check first. Use `--skip-tests` or
 `--skip-e2e` only when you have a specific reason.
 
+## Bootstrap prerequisites
+
+Before running any LocalClaw installer command, install these tools:
+
+1. **Git**, so you can clone the repository and pull future updates. Use the
+   official instructions at <https://git-scm.com/downloads>. On macOS, Apple's
+   Command Line Tools also provide Git; install them with `xcode-select
+   --install`.
+2. **Homebrew on macOS**, because LocalClaw uses it to install Vault, age, and
+   the other macOS prerequisites. Follow the official instructions at
+   <https://brew.sh/>. Homebrew is not installed automatically by LocalClaw.
+
+Ubuntu/Debian systems use `apt` instead of Homebrew. Git is still required
+before running the installer. After installing these bootstrap prerequisites,
+clone the repository and run `./localclaw setup`.
+
 Environment overrides use the `LOCALCLAW_` prefix, for example
 `LOCALCLAW_CONFIG_DIR`, `LOCALCLAW_STATE_DIR`, `LOCALCLAW_WORKSPACE_DIR`, and
 `LOCALCLAW_UPDATE_REMOTE`.
@@ -77,14 +93,17 @@ session. Each step is explained in more depth later in this file and in
 [`SECURITY.md`](SECURITY.md) — read those before you trust this with real
 secrets. Run the commands below in order, from the repo root.
 
-1. **Clone the repo and enter it.**
+1. **Install the bootstrap prerequisites** described above: Git everywhere,
+   and Homebrew on macOS.
+
+2. **Clone the repo and enter it.**
 
    ```sh
    git clone <this-repo-url>
    cd localclaw
    ```
 
-2. **Check prerequisites, then install missing tools and services** (§1–§3).
+3. **Check prerequisites, then install missing tools and services** (§1–§3).
    The installer checks every required tool first, including the selected
    password-manager CLI, and shows what is present or missing. It only prints a
    plan by default; `--apply` asks you to type `INSTALL` before it installs
@@ -95,12 +114,12 @@ secrets. Run the commands below in order, from the repo root.
    scripts/install --apply    # installs missing tools after a typed confirmation
    ```
 
-3. **Confirm OpenClaw is installed.** `scripts/install --apply` installs the
+4. **Confirm OpenClaw is installed.** `scripts/install --apply` installs the
    official `openclaw@extended-stable` npm package when it is missing. If you
    prefer to install or change channels manually, follow §4 and the upstream
    documentation.
 
-4. **Render your local config.** This creates your owner-only config/state
+5. **Render your local config.** This creates your owner-only config/state
    directories, seeds `stack.conf` and `secrets.map` from the shipped
    samples (only if they don't already exist), and initializes the
    work-memory database:
@@ -109,12 +128,12 @@ secrets. Run the commands below in order, from the repo root.
    scripts/bootstrap
    ```
 
-5. **Edit `stack.conf` and `secrets.map`** for your setup (ports, KV mount
+6. **Edit `stack.conf` and `secrets.map`** for your setup (ports, KV mount
    name, which provider keys get injected into the gateway). Both files live
    under your `XDG_CONFIG_HOME`, never in the repo — see
    [`CONFIGURATION.md`](CONFIGURATION.md) for every key and what it does.
 
-6. **Start Vault, then initialize and configure it yourself.** In one
+7. **Start Vault, then initialize and configure it yourself.** In one
    terminal, start Vault and leave it running:
 
    ```sh
