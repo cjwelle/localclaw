@@ -338,6 +338,15 @@ port_is_listening() {
     ss -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]${port}\$"
   elif have netstat; then
     netstat -an 2>/dev/null | grep -E 'LISTEN' | grep -Eq "[:.]${port}[[:space:]]"
+  elif have python3; then
+    python3 - "${port}" <<'PY'
+import socket
+import sys
+
+with socket.socket() as sock:
+    sock.settimeout(0.2)
+    raise SystemExit(0 if sock.connect_ex(("127.0.0.1", int(sys.argv[1]))) == 0 else 1)
+PY
   else
     return 1
   fi
