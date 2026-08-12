@@ -4,6 +4,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/common.sh
 . "${SCRIPT_DIR}/lib/common.sh"
 load_stack_config
 

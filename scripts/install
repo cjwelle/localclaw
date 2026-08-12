@@ -294,7 +294,8 @@ plan_debian() {
 
   # Distro packages. Note the bin->package mapping: node/npm come from
   # 'nodejs' + 'npm'; everything else maps to a like-named package.
-  local pkgs="" t arch="$(dpkg --print-architecture 2>/dev/null || printf amd64)"
+  local pkgs="" t arch
+  arch="$(dpkg --print-architecture 2>/dev/null || printf amd64)"
   need_tool node && pkgs="${pkgs} nodejs"
   need_tool npm  && pkgs="${pkgs} npm"
   for t in sqlite3 jq git curl tmux age tar; do
