@@ -213,6 +213,39 @@ confirm_apply() {
   confirmed=1
 }
 
+install_vault_from_tap() {
+  # Homebrew imports every formula in a tap before installing one formula.
+  # Some historical HashiCorp taps contain a broken vagrant.rb that prevents
+  # Vault from being imported. Temporarily move only that unrelated formula
+  # aside for this command, then restore it regardless of the result.
+  local tap_dir backup_dir formula backup status
+  if [ "${APPLY}" -eq 0 ]; then
+    run_step "install vault" brew install hashicorp/tap/vault
+    return $?
+  fi
+  tap_dir="$(brew --repo hashicorp/tap 2>/dev/null || true)"
+  formula="${tap_dir}/Formula/vagrant.rb"
+  if [ -z "${tap_dir}" ] || [ ! -f "${formula}" ]; then
+    run_step "install vault" brew install hashicorp/tap/vault
+    return $?
+  fi
+
+  backup_dir="$(mktemp -d "${TMPDIR:-/tmp}/localclaw-vagrant.XXXXXX")" \
+    || fail "Could not create a temporary backup for the broken HashiCorp formula."
+  backup="${backup_dir}/vagrant.rb"
+  if ! mv "${formula}" "${backup}"; then
+    rmdir "${backup_dir}" 2>/dev/null || true
+    fail "Could not quarantine the broken HashiCorp vagrant.rb."
+  fi
+  info "Temporarily excluding broken hashicorp/tap Formula/vagrant.rb while installing Vault."
+  printf '    $ brew install hashicorp/tap/vault\n' >&2
+  brew install hashicorp/tap/vault
+  status=$?
+  mv "${backup}" "${formula}" 2>/dev/null || warn "Could not restore ${formula}; backup remains at ${backup}"
+  rmdir "${backup_dir}" 2>/dev/null || true
+  [ "${status}" -eq 0 ] || fail "Step failed: install vault"
+}
+
 # ---------------------------------------------------------------------------
 # OpenClaw npm install (shared by both platforms). It runs only after the same
 # explicit INSTALL confirmation used for system packages.
