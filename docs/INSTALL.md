@@ -137,11 +137,11 @@ secrets. Run the commands below in order, from the repo root.
    destination, then type `INSTALL` before it installs any packages:
 
    ```sh
-   scripts/install            # plan only — changes nothing
-   scripts/install --apply    # installs missing tools after a typed confirmation
+   ./localclaw install            # plan only — changes nothing
+   ./localclaw install --apply    # installs missing tools after confirmation
    ```
 
-4. **Confirm OpenClaw is installed.** `scripts/install --apply` installs the
+4. **Confirm OpenClaw is installed.** `./localclaw install --apply` installs the
    official `openclaw@extended-stable` npm package when it is missing. If you
    prefer to install or change channels manually, follow §4 and the upstream
    documentation.
@@ -152,7 +152,7 @@ secrets. Run the commands below in order, from the repo root.
    work-memory database:
 
    ```sh
-   scripts/bootstrap
+   ./localclaw bootstrap
    ```
 
 6. **Edit `stack.conf` and `secrets.map`** for your setup (ports, KV mount
@@ -164,23 +164,23 @@ secrets. Run the commands below in order, from the repo root.
    terminal, start Vault and leave it running:
 
    ```sh
-   scripts/vault-start
+   ./localclaw vault-start
    ```
 
    In a second terminal:
 
    ```sh
-   scripts/vault-bootstrap init       # prints the exact init/unseal commands for YOU to run
+   ./localclaw vault-bootstrap init       # prints the exact init/unseal commands for YOU to run
    #   ...you run the printed `vault operator init` and `vault operator
    #   unseal` commands yourself — read "Where do the root token and unseal
    #   shares come from?" below before you do...
-   scripts/vault-bootstrap configure  # sets up the KV mount, policies, admin user, token roles
+   ./localclaw vault-bootstrap configure  # sets up the KV mount, policies, admin user, token roles
    ```
 
 7. **Verify everything** with the read-only preflight:
 
    ```sh
-   scripts/doctor
+   ./localclaw doctor
    ```
 
    Fix any `[FAIL]` line; `[WARN]` lines are advisory (e.g. backups not
@@ -196,8 +196,8 @@ secrets. Run the commands below in order, from the repo root.
    This does **not** touch the Vault you just initialized — see "The E2E test
    uses a disposable Vault only" below.
 
-Once `scripts/doctor` is clean, start a normal work session with
-`scripts/work-session` (or `make work-session`) — see
+Once `./localclaw doctor` is clean, start a normal work session with
+`./localclaw work-session` (or `make work-session`) — see
 [`OPERATIONS.md`](OPERATIONS.md) for what it does at each step.
 
 ### Where do the Vault root token and unseal shares come from?
