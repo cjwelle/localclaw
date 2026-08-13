@@ -112,93 +112,170 @@ when selected. On macOS, the selected provider CLI is
 installed with Homebrew. Provider account sign-in and MFA remain a separate,
 interactive step; the installer never asks for or stores those credentials.
 
-## Quick Start
+## Quick Start: complete first installation
 
-New to this stack? This is the fastest path from a fresh clone to a working
-session. Each step is explained in more depth later in this file and in
-[`CONFIGURATION.md`](CONFIGURATION.md), [`OPERATIONS.md`](OPERATIONS.md), and
-[`SECURITY.md`](SECURITY.md) — read those before you trust this with real
-secrets. Run the commands below in order, from the repo root.
+This is the canonical path from a clean OS to the first real LocalClaw
+session. `./localclaw setup` handles software installation, local config
+creation, doctor, regression tests, and a disposable E2E test. It does **not**
+initialize or configure your real Vault; the remaining steps do that safely and
+manually.
 
-1. **Install the bootstrap prerequisites** described above: Git everywhere,
-   and Homebrew on macOS.
+The distinction between the guides is simple:
 
-2. **Clone the repo and enter it.**
+- This Quick Start is the recommended end-to-end sequence using `./localclaw`.
+- [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md) explains the
+  same lifecycle at a lower level, with individual commands, safety rationale,
+  recovery guidance, and automation notes. Use it when troubleshooting or when
+  you intentionally do not want the guided setup.
 
-   ```sh
-   git clone <this-repo-url>
-   cd localclaw
-   ```
+Run these steps in order from the repository root.
 
-3. **Check prerequisites, then install missing tools and services** (§1–§3).
-   The installer checks every required tool first, including the selected
-   password-manager CLI, and shows what is present or missing. It only prints a
-   plan by default; `--apply` asks you to choose the password manager and backup
-   destination, then type `INSTALL` before it installs any packages:
+### 1. Clone and run guided setup
 
-   ```sh
-   ./localclaw install            # plan only — changes nothing
-   ./localclaw install --apply    # installs missing tools after confirmation
-   ```
+Install Git and Homebrew first on macOS (or Git and the normal apt bootstrap
+prerequisites on Ubuntu/Debian), then:
 
-4. **Confirm OpenClaw is installed.** `./localclaw install --apply` installs the
-   official `openclaw@extended-stable` npm package when it is missing. If you
-   prefer to install or change channels manually, follow §4 and the upstream
-   documentation.
+```sh
+git clone <this-repo-url> localclaw
+cd localclaw
+./localclaw setup
+```
 
-5. **Render your local config.** This creates your owner-only config/state
-   directories, seeds `stack.conf` and `secrets.map` from the shipped
-   samples (only if they don't already exist), and initializes the
-   work-memory database:
+During setup, the installer may ask you to select a password-manager CLI and a
+backup destination, then requires you to type `INSTALL` before packages are
+installed. Setup does not ask for your password-manager master password,
+Bitwarden session, Vault root token, or unseal shares.
 
-   ```sh
-   ./localclaw bootstrap
-   ```
+At the end, review `./localclaw doctor`. Warnings about an unconfigured backup
+recipient are expected until Step 4. The E2E result is disposable and does not
+prove that your real Vault is initialized.
 
-6. **Edit `stack.conf` and `secrets.map`** for your setup (ports, KV mount
-   name, which provider keys get injected into the gateway). Both files live
-   under your `XDG_CONFIG_HOME`, never in the repo — see
-   [`CONFIGURATION.md`](CONFIGURATION.md) for every key and what it does.
+### 2. Log in to the selected password-manager CLI
 
-7. **Start Vault, then initialize and configure it yourself.** In one
-   terminal, start Vault and leave it running:
+The installer installs the selected CLI; it does not authenticate it. Use the
+vendor's official instructions and complete MFA/security-key approval yourself:
 
-   ```sh
-   ./localclaw vault-start
-   ```
+- [Bitwarden CLI documentation](https://bitwarden.com/help/cli/): `bw login`,
+  then `bw unlock` when the vault is locked.
+- [1Password CLI documentation](https://developer.1password.com/docs/cli/):
+  authenticate with `op account add`/`op signin` as appropriate for your
+  account and desktop integration.
+- [LastPass CLI documentation](https://github.com/lastpass/lastpass-cli):
+  authenticate with `lpass login`.
 
-   In a second terminal:
+Check the selected CLI without exposing credentials:
 
-   ```sh
-   ./localclaw vault-bootstrap init       # prints the exact init/unseal commands for YOU to run
-   #   ...you run the printed `vault operator init` and `vault operator
-   #   unseal` commands yourself — read "Where do the root token and unseal
-   #   shares come from?" below before you do...
-   ./localclaw vault-bootstrap configure  # sets up the KV mount, policies, admin user, token roles
-   ```
+```sh
+./localclaw credentials status
+./localclaw doctor
+```
 
-7. **Verify everything** with the read-only preflight:
+CLI authentication is separate from LocalClaw's optional backup-key adapter.
+To use a password manager for encrypted-backup verification, first generate an
+age identity as described in [`BACKUP-RESTORE.md`](BACKUP-RESTORE.md), store the
+private identity in one secure note, and then configure only its provider-native
+reference:
 
-   ```sh
-   ./localclaw doctor
-   ```
+```sh
+./localclaw credentials configure \
+  --provider bitwarden \
+  --ref 'LocalClaw backup identity'
+```
 
-   Fix any `[FAIL]` line; `[WARN]` lines are advisory (e.g. backups not
-   configured yet).
+Use the matching `1password` or `lastpass` provider and reference format when
+applicable. Never put the private identity, master password, session token,
+Vault root token, or unseal shares in `stack.conf`.
 
-8. **Run the end-to-end test** to confirm the full lifecycle works on your
-   machine:
+### 3. Bootstrap and initialize the real Vault
 
-   ```sh
-   tests/e2e/run.sh
-   ```
+`./localclaw setup` normally already ran bootstrap. If you skipped it or want
+to rerun it safely:
 
-   This does **not** touch the Vault you just initialized — see "The E2E test
-   uses a disposable Vault only" below.
+```sh
+./localclaw bootstrap
+```
 
-Once `./localclaw doctor` is clean, start a normal work session with
-`./localclaw work-session` (or `make work-session`) — see
-[`OPERATIONS.md`](OPERATIONS.md) for what it does at each step.
+Review the generated owner-only files:
+
+```sh
+CFG="${XDG_CONFIG_HOME:-$HOME/.config}/localclaw"
+$EDITOR "$CFG/stack.conf"
+$EDITOR "$CFG/secrets.map"
+```
+
+Keep Vault loopback-only (`VAULT_HOST=127.0.0.1`). `secrets.map` contains only
+Vault paths and field names, never secret values. Add the public age recipient
+and confirm `BACKUP_DIR` if you enabled backups.
+
+Start the real, foreground Vault in terminal 1:
+
+```sh
+./localclaw vault-start
+```
+
+In terminal 2, print the initialization instructions:
+
+```sh
+./localclaw vault-bootstrap init
+```
+
+Run the printed `vault operator init` command yourself. Save the root token and
+the required unseal shares in secure external custody. Then run the printed
+`vault operator unseal` command with enough different shares to reach the
+threshold. LocalClaw does not capture or store this material.
+
+Configure the KV mount, policies, admin login, and short-lived session roles:
+
+```sh
+./localclaw vault-bootstrap configure
+```
+
+After confirming the admin login works, revoke the initial root token:
+
+```sh
+./localclaw vault-bootstrap revoke-root
+```
+
+Keep the unseal shares. They are required if Vault seals again.
+
+### 4. Add the secrets that OpenClaw should receive
+
+Use the Vault CLI with an approved operator/admin token supplied interactively.
+The exact path must match the mount/path/field entries in `secrets.map`:
+
+```sh
+export VAULT_ADDR="http://127.0.0.1:18200"
+vault kv put local/ai/openai api_key='PASTE_VALUE_INTERACTIVELY'
+unset VAULT_ADDR VAULT_TOKEN
+```
+
+Do not paste real secrets into shell history, chat, Git, or `secrets.map`.
+
+### 5. Verify and run the first real session
+
+```sh
+./localclaw doctor
+./localclaw work-session --dry-run
+./localclaw work-session
+```
+
+The real work session starts its owned foreground Vault/gateway lifecycle,
+unseals Vault, authenticates, mints short-lived least-privilege tokens, injects
+only the mapped secrets, and opens the OpenClaw terminal UI. Exit with `/exit`,
+Ctrl-D, or the documented Ctrl-C sequence. Cleanup revokes temporary tokens,
+takes an encrypted backup if fully configured, and stops the processes.
+
+### 6. Verify backups and keep operating safely
+
+If backups are configured, exit a successful session once and confirm a
+ciphertext archive appears under `BACKUP_DIR/Daily/`. Then verify it:
+
+```sh
+./localclaw backup verify /absolute/path/to/backup.tar.gz.age
+```
+
+Read [`BACKUP-RESTORE.md`](BACKUP-RESTORE.md) before any restore operation.
+For normal operation and updates, use [`OPERATIONS.md`](OPERATIONS.md).
 
 ### Where do the Vault root token and unseal shares come from?
 
