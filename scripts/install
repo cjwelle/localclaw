@@ -226,7 +226,7 @@ configure_backup_dir() {
   if [ "${os}" = macos ]; then
     printf '  1) iCloud Drive     (%s)\n' "${HOME}/Library/Mobile Documents/com~apple~CloudDocs/LocalClawBackups" >&2
     printf '  2) Cloud storage    (%s)\n' "${HOME}/CloudStorage/LocalClawBackups" >&2
-    printf '  3) Local home folder (%s)\n' "${HOME}/openclaw-backups" >&2
+    printf '  3) Local home folder (%s)\n' "${HOME}/localclaw-backups" >&2
     printf '  4) Custom absolute path\n' >&2
     printf '  5) Disable backups\n' >&2
     printf '  6) Set up backups later\n' >&2
@@ -235,7 +235,7 @@ configure_backup_dir() {
     case "${choice}" in
       1) answer="${HOME}/Library/Mobile Documents/com~apple~CloudDocs/LocalClawBackups" ;;
       2) answer="${HOME}/CloudStorage/LocalClawBackups" ;;
-      3) answer="${HOME}/openclaw-backups" ;;
+      3) answer="${HOME}/localclaw-backups" ;;
       4) printf 'Custom backup directory (absolute path): ' >&2; IFS= read -r answer || answer="" ;;
       5) answer="" ;;
       6|'') answer=""; info "Backup setup deferred. Re-run './scripts/install --apply' later to choose a destination." ;;
@@ -243,14 +243,14 @@ configure_backup_dir() {
       *) fail "Choose a number from 1 to 5; backups remain disabled." ;;
     esac
   else
-    printf '  1) Local home folder (%s)\n' "${HOME}/openclaw-backups" >&2
+    printf '  1) Local home folder (%s)\n' "${HOME}/localclaw-backups" >&2
     printf '  2) Custom absolute path\n' >&2
     printf '  3) Disable backups\n' >&2
     printf '  4) Set up backups later\n' >&2
     printf 'Choose [1-4] (4): ' >&2
     IFS= read -r choice || choice="4"
     case "${choice}" in
-      1) answer="${HOME}/openclaw-backups" ;;
+      1) answer="${HOME}/localclaw-backups" ;;
       2) printf 'Custom backup directory (absolute path): ' >&2; IFS= read -r answer || answer="" ;;
       3) answer="" ;;
       4|'') answer=""; info "Backup setup deferred. Re-run './scripts/install --apply' later to choose a destination." ;;

@@ -26,7 +26,7 @@ done
 assert_fail "reject the real HOME itself" run_common validate_safe_dir "${HOME}"
 
 # --- A genuinely safe path is accepted -------------------------------------
-assert_ok "accept a safe absolute path" run_common validate_safe_dir "${HOME}/openclaw-backups"
+assert_ok "accept a safe absolute path" run_common validate_safe_dir "${HOME}/localclaw-backups"
 
 # --- validate_backup_dir additionally refuses repo and state dirs ----------
 # BACKUP_DIR must not live inside the repository or the runtime state directory.
@@ -38,7 +38,7 @@ assert_fail "backup dir cannot be the repo" \
 assert_fail "backup dir cannot be under runtime state" \
   run_common validate_backup_dir "${XDG_STATE_HOME}/localclaw/sub"
 assert_ok "accept a safe backup dir" \
-  run_common validate_backup_dir "${HOME}/openclaw-backups"
+  run_common validate_backup_dir "${HOME}/localclaw-backups"
 
 # --- age recipient validation ----------------------------------------------
 good_recip="${HOME}/recipient.good"
