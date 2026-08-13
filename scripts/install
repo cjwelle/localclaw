@@ -213,6 +213,36 @@ confirm_apply() {
   confirmed=1
 }
 
+configure_backup_dir() {
+  # Backups are opt-in. Never prompt or write config during plan mode or when
+  # stdin is not an interactive terminal.
+  [ "${APPLY}" -eq 1 ] || return 0
+  [ -t 0 ] || return 0
+  [ -n "${BACKUP_DIR}" ] && return 0
+
+  local answer
+  printf 'Backup directory (absolute path; press Enter to disable backups): ' >&2
+  IFS= read -r answer || answer=""
+  [ -n "${answer}" ] || {
+    info "Encrypted backups remain disabled (BACKUP_DIR is empty)."
+    return 0
+  }
+  case "${answer}" in
+    /*) : ;;
+    *) fail "Backup directory must be an absolute path; backups remain disabled." ;;
+  esac
+  validate_backup_dir "${answer}"
+  ensure_private_dir "${answer}"
+  mkdir -p "${LOCALCLAW_CONFIG_DIR}" || fail "Could not create ${LOCALCLAW_CONFIG_DIR}."
+  chmod 700 "${LOCALCLAW_CONFIG_DIR}" 2>/dev/null || true
+  printf '\n# Encrypted Vault backup destination (configured by scripts/install)\nBACKUP_DIR=%s\n' \
+    "${answer}" >> "${LOCALCLAW_STACK_CONF}" \
+    || fail "Could not save BACKUP_DIR to ${LOCALCLAW_STACK_CONF}."
+  chmod 600 "${LOCALCLAW_STACK_CONF}" 2>/dev/null || true
+  BACKUP_DIR="${answer}"
+  ok "Encrypted backups enabled: ${BACKUP_DIR}"
+}
+
 install_vault_from_tap() {
   # Homebrew imports every formula in a tap before installing one formula.
   # Some historical HashiCorp taps contain a broken vagrant.rb that prevents
@@ -500,6 +530,15 @@ case "${os}" in
 esac
 
 plan_openclaw
+
+printf '\n== Encrypted backups ==\n' >&2
+if [ "${APPLY}" -eq 1 ] && [ -z "${BACKUP_DIR}" ] && [ -t 0 ]; then
+  configure_backup_dir
+elif [ -n "${BACKUP_DIR}" ]; then
+  info "Backup directory already configured: ${BACKUP_DIR}"
+else
+  info "Backups disabled (set BACKUP_DIR during an interactive --apply run)."
+fi
 
 printf '\n== Password-manager selection ==\n' >&2
 case "${PASSWORD_MANAGER}" in
