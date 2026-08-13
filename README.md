@@ -117,6 +117,11 @@ flow.
 - **macOS** via [Homebrew][brew].
 - **Ubuntu / Debian** via `apt` (plus HashiCorp's apt repository for Vault).
 
+Windows users may be able to run LocalClaw inside the Ubuntu side of WSL using
+the Ubuntu/Debian instructions above. WSL should work in principle because the
+scripts target Linux userland, but WSL has not been fully tested or validated;
+Windows-native execution is not a supported path at this time.
+
 The scripts target Bash 3.2+ (so they run on the stock macOS shell) and avoid
 Bash 4-only features. Exact tested OS versions are a
 [maintainer decision](docs/MAINTAINER-DECISIONS.md).

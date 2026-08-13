@@ -5,6 +5,10 @@ new Mac or Ubuntu machine. It explains both the commands a person runs and the
 checks that automation should perform. Start here if you are new to the
 repository; use the linked specialist documents when you need the details.
 
+The Ubuntu instructions may also work inside WSL. WSL is not fully tested or
+validated, so use the Ubuntu/Linux shell and treat any WSL-specific behavior as
+unsupported until verified. Windows-native execution is not supported.
+
 ## What you are installing
 
 The stack runs two local foreground processes:

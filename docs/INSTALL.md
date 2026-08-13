@@ -48,6 +48,14 @@ Ubuntu/Debian systems use `apt` instead of Homebrew. Git is still required
 before running the installer. After installing these bootstrap prerequisites,
 clone the repository and run `./localclaw setup`.
 
+### Windows Subsystem for Linux (WSL)
+
+LocalClaw may work inside the Ubuntu distribution provided by WSL. Use the
+Ubuntu/Debian instructions and run all commands from the Linux shell, not from
+Windows PowerShell or Command Prompt. This path should work in principle, but
+WSL has not been fully tested or validated by the project. Windows-native
+execution is not currently supported.
+
 Environment overrides use the `LOCALCLAW_` prefix, for example
 `LOCALCLAW_CONFIG_DIR`, `LOCALCLAW_STATE_DIR`, `LOCALCLAW_WORKSPACE_DIR`, and
 `LOCALCLAW_UPDATE_REMOTE`.
