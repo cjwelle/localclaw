@@ -34,7 +34,12 @@ APPLY=0
 PASSWORD_MANAGER="${CREDENTIAL_PROVIDER:-none}"
 PASSWORD_MANAGER_SET=0
 PASSWORD_MANAGER_CONFIGURED=0
-[ -n "${CREDENTIAL_PROVIDER:-}" ] && PASSWORD_MANAGER_CONFIGURED=1
+# common.sh initializes CREDENTIAL_PROVIDER=none as a default. That default is
+# not evidence that the operator has made a selection; only an explicit config
+# entry should suppress the first-run prompt.
+if [ -r "${LOCALCLAW_STACK_CONF}" ] && grep -Eq '^[[:space:]]*CREDENTIAL_PROVIDER[[:space:]]*=' "${LOCALCLAW_STACK_CONF}"; then
+  PASSWORD_MANAGER_CONFIGURED=1
+fi
 any=0   # set to 1 whenever a plan step proposes an install
 confirmed=0
 
