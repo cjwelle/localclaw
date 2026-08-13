@@ -1,7 +1,7 @@
 # Installation
 
 > **Start here if you want the full guided path:**
-> [`SELF-HOSTING.md`](SELF-HOSTING.md) walks from a fresh clone through Vault,
+> [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md) walks from a fresh clone through Vault,
 > the first OpenClaw session, backups, and tests. This file
 > remains the detailed prerequisite and platform reference.
 

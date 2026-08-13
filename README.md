@@ -160,7 +160,7 @@ what is present, missing, and whether permissions are correct.
 
 For a complete, plain-language walkthrough—including the commands an automated
 installer should run and the actions it must never automate—start with
-[`docs/SELF-HOSTING.md`](docs/SELF-HOSTING.md).
+[`docs/MANUAL-STEP-INSTALLATION.md`](docs/MANUAL-STEP-INSTALLATION.md).
 
 1. **Install prerequisites** for your OS: `scripts/install` (plan only) then
    `scripts/install --apply` — or follow [`docs/INSTALL.md`](docs/INSTALL.md).

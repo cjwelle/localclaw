@@ -1,4 +1,4 @@
-# Self-hosting guide: from zero to a working stack
+# Manual-Step Installation: from zero to a working stack
 
 This is the plain-language, copy-and-check guide for installing the stack on a
 new Mac or Ubuntu machine. It explains both the commands a person runs and the

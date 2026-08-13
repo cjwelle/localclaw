@@ -92,7 +92,7 @@ requires the configured unseal threshold, and the operator must enter those
 shares manually during `scripts/work-session` or the documented bootstrap
 procedure.
 
-> New operators: start with [`SELF-HOSTING.md`](SELF-HOSTING.md), then return
+> New operators: start with [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md), then return
 > here for the detailed age identity, archive, verification, and restore steps.
 
 Backups are **optional** and **off by default**. When enabled, the stack takes a

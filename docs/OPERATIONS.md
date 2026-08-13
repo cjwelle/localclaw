@@ -1,6 +1,6 @@
 # Operations
 
-> If this is a new machine, use [`SELF-HOSTING.md`](SELF-HOSTING.md) before
+> If this is a new machine, use [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md) before
 > using this day-to-day runbook. It explains the first initialization and the
 > safe boundaries for automation.
 
