@@ -224,8 +224,8 @@ configure_backup_dir() {
   os="$(detect_os)"
   printf '\nWhere should encrypted Vault backups be stored?\n' >&2
   if [ "${os}" = macos ]; then
-    printf '  1) iCloud Drive     (%s)\n' "${HOME}/Library/Mobile Documents/com~apple~CloudDocs/OpenClawBackups" >&2
-    printf '  2) Cloud storage    (%s)\n' "${HOME}/CloudStorage/OpenClawBackups" >&2
+    printf '  1) iCloud Drive     (%s)\n' "${HOME}/Library/Mobile Documents/com~apple~CloudDocs/LocalClawBackups" >&2
+    printf '  2) Cloud storage    (%s)\n' "${HOME}/CloudStorage/LocalClawBackups" >&2
     printf '  3) Local home folder (%s)\n' "${HOME}/openclaw-backups" >&2
     printf '  4) Custom absolute path\n' >&2
     printf '  5) Disable backups\n' >&2
@@ -233,8 +233,8 @@ configure_backup_dir() {
     printf 'Choose [1-6] (6): ' >&2
     IFS= read -r choice || choice="6"
     case "${choice}" in
-      1) answer="${HOME}/Library/Mobile Documents/com~apple~CloudDocs/OpenClawBackups" ;;
-      2) answer="${HOME}/CloudStorage/OpenClawBackups" ;;
+      1) answer="${HOME}/Library/Mobile Documents/com~apple~CloudDocs/LocalClawBackups" ;;
+      2) answer="${HOME}/CloudStorage/LocalClawBackups" ;;
       3) answer="${HOME}/openclaw-backups" ;;
       4) printf 'Custom backup directory (absolute path): ' >&2; IFS= read -r answer || answer="" ;;
       5) answer="" ;;

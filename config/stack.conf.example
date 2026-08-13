@@ -45,9 +45,9 @@ VAULT_KEY_THRESHOLD=3
 # below are illustrations only ($HOME expands to your home directory):
 #
 #   macOS iCloud Drive:
-#     BACKUP_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/OpenClawBackups"
+#     BACKUP_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/LocalClawBackups"
 #   Generic cloud-sync client:
-#     BACKUP_DIR="$HOME/CloudStorage/OpenClawBackups"
+#     BACKUP_DIR="$HOME/CloudStorage/LocalClawBackups"
 #   Plain local directory:
 #     BACKUP_DIR="$HOME/openclaw-backups"
 #
