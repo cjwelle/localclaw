@@ -56,6 +56,8 @@ Windows PowerShell or Command Prompt. This path should work in principle, but
 WSL has not been fully tested or validated by the project. Windows-native
 execution is not currently supported.
 
+## Installer behavior
+
 Environment overrides use the `LOCALCLAW_` prefix, for example
 `LOCALCLAW_CONFIG_DIR`, `LOCALCLAW_STATE_DIR`, `LOCALCLAW_WORKSPACE_DIR`, and
 `LOCALCLAW_UPDATE_REMOTE`.
