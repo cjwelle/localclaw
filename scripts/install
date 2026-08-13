@@ -220,9 +220,40 @@ configure_backup_dir() {
   [ -t 0 ] || return 0
   [ -n "${BACKUP_DIR}" ] && return 0
 
-  local answer
-  printf 'Backup directory (absolute path; press Enter to disable backups): ' >&2
-  IFS= read -r answer || answer=""
+  local answer choice os
+  os="$(detect_os)"
+  printf '\nWhere should encrypted Vault backups be stored?\n' >&2
+  if [ "${os}" = macos ]; then
+    printf '  1) iCloud Drive     (%s)\n' "${HOME}/Library/Mobile Documents/com~apple~CloudDocs/OpenClawBackups" >&2
+    printf '  2) Cloud storage    (%s)\n' "${HOME}/CloudStorage/OpenClawBackups" >&2
+    printf '  3) Local home folder (%s)\n' "${HOME}/openclaw-backups" >&2
+    printf '  4) Custom absolute path\n' >&2
+    printf '  5) Disable backups\n' >&2
+    printf 'Choose [1-5] (5): ' >&2
+    IFS= read -r choice || choice="5"
+    case "${choice}" in
+      1) answer="${HOME}/Library/Mobile Documents/com~apple~CloudDocs/OpenClawBackups" ;;
+      2) answer="${HOME}/CloudStorage/OpenClawBackups" ;;
+      3) answer="${HOME}/openclaw-backups" ;;
+      4) printf 'Custom backup directory (absolute path): ' >&2; IFS= read -r answer || answer="" ;;
+      5|'') answer="" ;;
+      /*) answer="${choice}" ;;
+      *) fail "Choose a number from 1 to 5; backups remain disabled." ;;
+    esac
+  else
+    printf '  1) Local home folder (%s)\n' "${HOME}/openclaw-backups" >&2
+    printf '  2) Custom absolute path\n' >&2
+    printf '  3) Disable backups\n' >&2
+    printf 'Choose [1-3] (3): ' >&2
+    IFS= read -r choice || choice="3"
+    case "${choice}" in
+      1) answer="${HOME}/openclaw-backups" ;;
+      2) printf 'Custom backup directory (absolute path): ' >&2; IFS= read -r answer || answer="" ;;
+      3|'') answer="" ;;
+      /*) answer="${choice}" ;;
+      *) fail "Choose a number from 1 to 3; backups remain disabled." ;;
+    esac
+  fi
   [ -n "${answer}" ] || {
     info "Encrypted backups remain disabled (BACKUP_DIR is empty)."
     return 0
