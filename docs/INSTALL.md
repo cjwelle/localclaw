@@ -55,7 +55,10 @@ Environment overrides use the `LOCALCLAW_` prefix, for example
 `scripts/install` is safe by default: it first performs a complete, read-only
 prerequisite check and then prints the installation plan. It installs missing
 supported tools and the official OpenClaw package **only** under `--apply`,
-after a typed `INSTALL` confirmation. It may require `sudo` on Ubuntu/Debian or
+after you explicitly type `INSTALL` at the confirmation prompt. In an
+interactive run, it may also prompt you to choose a password manager and a
+backup destination; press Enter or choose the displayed defer/disable option
+to leave either unconfigured. It may require `sudo` on Ubuntu/Debian or
 administrator approval through Homebrew. It never pipes a download into a
 shell, does not start a background service or register a scheduler, and does
 not touch your credentials.
@@ -130,8 +133,8 @@ secrets. Run the commands below in order, from the repo root.
 3. **Check prerequisites, then install missing tools and services** (§1–§3).
    The installer checks every required tool first, including the selected
    password-manager CLI, and shows what is present or missing. It only prints a
-   plan by default; `--apply` asks you to type `INSTALL` before it installs
-   anything:
+   plan by default; `--apply` asks you to choose the password manager and backup
+   destination, then type `INSTALL` before it installs any packages:
 
    ```sh
    scripts/install            # plan only — changes nothing
