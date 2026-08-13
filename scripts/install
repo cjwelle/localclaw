@@ -33,6 +33,8 @@ load_stack_config
 APPLY=0
 PASSWORD_MANAGER="${CREDENTIAL_PROVIDER:-none}"
 PASSWORD_MANAGER_SET=0
+PASSWORD_MANAGER_CONFIGURED=0
+[ -n "${CREDENTIAL_PROVIDER:-}" ] && PASSWORD_MANAGER_CONFIGURED=1
 any=0   # set to 1 whenever a plan step proposes an install
 confirmed=0
 
@@ -72,7 +74,7 @@ case "${PASSWORD_MANAGER}" in
   none|bitwarden|1password|lastpass) : ;;
   *) usage; fail "Unsupported password manager: ${PASSWORD_MANAGER}" ;;
 esac
-if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ -t 0 ]; then
+if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ "${PASSWORD_MANAGER_CONFIGURED}" -eq 0 ] && [ -t 0 ]; then
   printf 'Which password manager should LOCALCLAW support? [none/bitwarden/1password/lastpass] (none): ' >&2
   IFS= read -r answer || answer=""
   [ -n "${answer}" ] && PASSWORD_MANAGER="${answer}"
@@ -80,6 +82,9 @@ if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ -t 0 ]; then
     none|bitwarden|1password|lastpass) : ;;
     *) fail "Unsupported password manager: ${PASSWORD_MANAGER}" ;;
   esac
+fi
+if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ "${PASSWORD_MANAGER_CONFIGURED}" -eq 1 ]; then
+  info "Using configured password manager: ${PASSWORD_MANAGER}"
 fi
 
 os="$(detect_os)"
