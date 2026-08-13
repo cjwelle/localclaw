@@ -11,7 +11,7 @@
 > Prefer the upstream docs for OpenClaw itself; always review any downloaded
 > installer before running it (never curl-pipe into a shell). See §4.
 
-You can let `scripts/install` **plan** the setup for you (it prints the exact
+You can let `./localclaw install` **plan** the setup for you (it prints the exact
 package-manager commands and changes nothing), or follow the manual commands in
 this guide. Either way, review each command before running it.
 
@@ -62,7 +62,7 @@ Environment overrides use the `LOCALCLAW_` prefix, for example
 `LOCALCLAW_CONFIG_DIR`, `LOCALCLAW_STATE_DIR`, `LOCALCLAW_WORKSPACE_DIR`, and
 `LOCALCLAW_UPDATE_REMOTE`.
 
-`scripts/install` is safe by default: it first performs a complete, read-only
+`./localclaw install` is safe by default: it first performs a complete, read-only
 prerequisite check and then prints the installation plan. It installs missing
 supported tools and the official OpenClaw package **only** under `--apply`,
 after you explicitly type `INSTALL` at the confirmation prompt. In an
@@ -74,8 +74,8 @@ shell, does not start a background service or register a scheduler, and does
 not touch your credentials.
 
 ```sh
-scripts/install            # plan only (default): prints what it would do
-scripts/install --apply    # install missing tools after a typed confirmation
+./localclaw install             # plan only (default): prints what it would do
+./localclaw install --apply     # install missing tools after confirmation
 ./localclaw doctor              # read-only health check
 ./localclaw update --check      # check release tags without changing anything
 ```
@@ -91,8 +91,8 @@ key. The status check is bounded so a stuck provider CLI cannot pause the
 installer. For automation, pass the choice explicitly:
 
 ```sh
-scripts/install --password-manager bitwarden
-scripts/install --apply --password-manager 1password
+./localclaw install --password-manager bitwarden
+./localclaw install --apply --password-manager 1password
 ```
 
 ### Bitwarden login and unlock
