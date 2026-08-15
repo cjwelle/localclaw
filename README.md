@@ -55,6 +55,12 @@ database.
 > security-minded review. Please open an issue or discussion on GitHub before
 > relying on it for a critical workstation or production workflow.
 
+> **Password-manager support status:** Bitwarden is the only password-manager
+> integration tested by the project so far. 1Password and LastPass are planned
+> for future testing and validation; they are supported as implementation
+> targets and may work now, but should be treated as unvalidated and used with
+> care until tested.
+
 ---
 
 ## Why this exists

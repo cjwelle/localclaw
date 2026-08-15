@@ -38,6 +38,11 @@ During an interactive run, the installer asks which password manager you use
 CLI and includes it in the installation plan. For automation, pass the choice
 explicitly:
 
+> **Testing status:** Bitwarden is the only password-manager integration tested
+> by the project so far. 1Password and LastPass are supported as future
+> integration targets and may work now, but they have not yet been tested or
+> validated by the project.
+
 ```sh
 scripts/install --password-manager bitwarden
 scripts/install --apply --password-manager 1password
@@ -188,6 +193,10 @@ safe to run at any time, on any machine, including in CI.
 | `shellcheck` | Linting scripts (contributors) | Optional |
 
 ### Password-manager prerequisites
+
+Bitwarden is currently the only tested provider. The 1Password and LastPass
+adapters are intended to work with their standard CLIs, but remain untested and
+should be considered experimental until the project validates them.
 
 The Bitwarden, 1Password, and LastPass integrations are optional. To use one,
 you must have all of the following before running `./osls credentials configure`:

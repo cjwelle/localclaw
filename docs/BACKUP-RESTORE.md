@@ -2,6 +2,10 @@
 
 ## Password-manager key retrieval (Bitwarden, 1Password, or LastPass)
 
+> **Testing status:** Bitwarden is the only password-manager integration tested
+> by the project so far. 1Password and LastPass are future validation targets;
+> they may work now, but are unvalidated and should be treated as experimental.
+
 The encrypted backup recipient is public and stays in local configuration. The
 private age identity is recovery material and should live in one password
 manager. `osls backup verify` temporarily retrieves that identity, verifies the

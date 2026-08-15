@@ -9,6 +9,11 @@ documentation improvements, usability observations, and careful security
 review are welcome through the GitHub repository. Please include your operating
 system, the command or workflow you tested, and relevant sanitized output.
 
+The Bitwarden password-manager integration is currently the only one tested by
+the project. Contributions that validate or improve the 1Password and LastPass
+adapters are especially welcome; those integrations may work now, but remain
+experimental until tested.
+
 > **License:** this project is licensed under the **GNU General Public License
 > v3.0 or later** (`GPL-3.0-or-later`); see [`../LICENSE`](../LICENSE). By
 > contributing, you agree that your contributions are offered under the same
