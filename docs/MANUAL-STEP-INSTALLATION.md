@@ -245,7 +245,8 @@ make test
 ```
 
 The E2E test also starts a disposable Vault and mock gateway. It does not use
-your configured Vault or your real `secrets.map`:
+your configured Vault or your real `secrets.map`. See
+[`E2E.md`](E2E.md) for the detailed behavior:
 
 ```sh
 tests/e2e/run.sh

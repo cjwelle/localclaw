@@ -14,7 +14,7 @@ Run these jobs for pull requests and release candidates:
 | Safety and rendering tests | `make test` | Exercise the throwaway-home test suite. |
 | Ubuntu coverage | `scripts/ci-local ubuntu` | Run the suite in the documented Ubuntu container. |
 | Native host coverage | `scripts/ci-local native` | Run the same suite on macOS or Linux. |
-| End-to-end lifecycle | `tests/e2e/run.sh` | Verify disposable Vault, secret injection, gateway startup, and cleanup. |
+| End-to-end lifecycle | `tests/e2e/run.sh` | Verify disposable Vault, secret injection, gateway startup, and cleanup. See [`E2E.md`](E2E.md). |
 | Secret scan | provider-native scanner or repository script | Reject credentials, state, and rendered runtime files. |
 | Release verification | `scripts/release verify` | Validate the version and release metadata. |
 

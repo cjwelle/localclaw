@@ -28,9 +28,10 @@ For a new machine, the guided command runs the full sequence in one flow:
 
 It checks and installs prerequisites, checks for a release update, bootstraps
 configuration, runs `doctor`, the regression suite, and the disposable E2E
-lifecycle test. It does not apply a code update unless you explicitly pass
-`--apply-update`; review the update check first. Use `--skip-tests` or
-`--skip-e2e` only when you have a specific reason.
+lifecycle test. See [`E2E.md`](E2E.md) for the disposable Vault details. It
+does not apply a code update unless you explicitly pass `--apply-update`;
+review the update check first. Use `--skip-tests` or `--skip-e2e` only when
+you have a specific reason.
 
 ## Bootstrap prerequisites
 
@@ -394,15 +395,6 @@ manager — keep the unseal shares.
 > identity during backup verification. It does not store provider passwords,
 > session tokens, or unseal shares. See the step-by-step setup in
 > [`BACKUP-RESTORE.md`](BACKUP-RESTORE.md).
-
-### The E2E test uses a disposable Vault only
-
-`tests/e2e/run.sh` starts its **own throwaway Vault** in dev mode on a
-loopback port it picks itself, seeded with a fixed, non-secret test password
-and a fixed test API key. It never reads your `stack.conf` or `secrets.map`,
-never talks to the Vault you initialized in step 6, and tears the whole thing
-down — Vault process, mock gateway, temporary `HOME` — when it exits. It is
-safe to run at any time, on any machine, including in CI.
 
 ## 1. Prerequisites
 
