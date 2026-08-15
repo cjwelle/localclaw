@@ -4,6 +4,11 @@ Thanks for considering a contribution. This project is a **security baseline**,
 so changes are held to the invariants below. Please read them before opening a
 merge request.
 
+LocalClaw is still in active development and is open for feedback. Bug reports,
+documentation improvements, usability observations, and careful security
+review are welcome through the GitHub repository. Please include your operating
+system, the command or workflow you tested, and relevant sanitized output.
+
 > **License:** this project is licensed under the **GNU General Public License
 > v3.0 or later** (`GPL-3.0-or-later`); see [`../LICENSE`](../LICENSE). By
 > contributing, you agree that your contributions are offered under the same

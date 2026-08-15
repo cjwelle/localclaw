@@ -50,6 +50,11 @@ database.
 > software without `--apply`, start background services, initialize git, or
 > handle your credentials for you.
 
+> **Active development:** LocalClaw is still being built and refined. The
+> project is open for feedback, bug reports, documentation suggestions, and
+> security-minded review. Please open an issue or discussion on GitHub before
+> relying on it for a critical workstation or production workflow.
+
 ---
 
 ## Why this exists
