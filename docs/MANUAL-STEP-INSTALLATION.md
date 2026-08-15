@@ -145,7 +145,8 @@ export VAULT_ADDR="http://127.0.0.1:18200"
 vault operator unseal
 ```
 
-If you need to stop the foreground Vault from another terminal, use:
+Optional: if you need to stop the foreground Vault from another terminal,
+use:
 
 ```sh
 scripts/vault-stop
