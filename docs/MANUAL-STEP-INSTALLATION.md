@@ -137,6 +137,13 @@ The repository must never receive them.
 Then unseal Vault by running the printed `vault operator unseal` command with
 enough different shares to reach the threshold.
 
+If you are doing this manually, the unseal command is the standard Vault CLI
+command and you run it once per share:
+
+```sh
+vault operator unseal
+```
+
 Configure the local KV mount, policies, admin login, and short-lived session
 roles:
 
@@ -158,6 +165,16 @@ scripts/vault-bootstrap revoke-root
 ```
 
 Do not revoke the unseal shares; they are needed if Vault seals again.
+
+After the admin login exists, the launcher mints the same short-lived
+least-privilege session tokens with the standard Vault CLI token-create flow:
+
+```sh
+vault token create -role=agent-session -policy=agent -ttl=8h
+vault token create -role=backup-session -policy=backup -ttl=8h
+```
+
+Those are the roles used by the foreground gateway and backup path.
 
 ## Step 6: add secrets to Vault
 

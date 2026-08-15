@@ -276,6 +276,13 @@ the required unseal shares in secure external custody. Then run the printed
 `vault operator unseal` command with enough different shares to reach the
 threshold. LocalClaw does not capture or store this material.
 
+If you are following the flow manually, the unseal command is the standard
+Vault CLI command and you run it once per share:
+
+```sh
+vault operator unseal
+```
+
 Configure the KV mount, policies, admin login, and short-lived session roles:
 
 ```sh
@@ -289,6 +296,17 @@ After confirming the admin login works, revoke the initial root token:
 ```
 
 Keep the unseal shares. They are required if Vault seals again.
+
+Once the admin login exists, the stack mints its short-lived least-privilege
+session tokens with the standard Vault CLI token-create flow:
+
+```sh
+vault token create -role=agent-session -policy=agent -ttl=8h
+vault token create -role=backup-session -policy=backup -ttl=8h
+```
+
+Those are the same roles the launcher uses later for the foreground gateway and
+the backup path.
 
 ### 4. Add the secrets that OpenClaw should receive
 
