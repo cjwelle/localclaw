@@ -137,10 +137,11 @@ The repository must never receive them.
 Then unseal Vault by running the printed `vault operator unseal` command with
 enough different shares to reach the threshold.
 
-If you are doing this manually, the unseal command is the standard Vault CLI
-command and you run it once per share:
+If you are doing this manually, set `VAULT_ADDR` to the local listener first,
+then run the standard Vault CLI command once per share:
 
 ```sh
+export VAULT_ADDR="http://127.0.0.1:18200"
 vault operator unseal
 ```
 
@@ -172,10 +173,15 @@ scripts/vault-bootstrap revoke-root
 
 Do not revoke the unseal shares; they are needed if Vault seals again.
 
-After the admin login exists, the launcher mints the same short-lived
-least-privilege session tokens with the standard Vault CLI token-create flow:
+After the admin login exists, keep `VAULT_ADDR` pointed at the local listener
+and mint the same short-lived least-privilege session tokens with the standard
+Vault CLI token-create flow:
+
+Use `export`, not `set`, so the address stays in scope for the later Vault
+commands in the same shell.
 
 ```sh
+export VAULT_ADDR="http://127.0.0.1:18200"
 vault token create -role=agent-session -policy=agent -ttl=8h
 vault token create -role=backup-session -policy=backup -ttl=8h
 ```
@@ -185,8 +191,8 @@ Those are the roles used by the foreground gateway and backup path.
 ## Step 6: add secrets to Vault
 
 Use the Vault CLI with a privileged operator token supplied interactively or by
-your approved secret manager. Do not put the token in a shell script or command
-history. Example path only:
+your approved secret manager. Set `VAULT_ADDR` first, then use the exact path
+that matches the mount/path/field entries in `secrets.map`:
 
 ```sh
 export VAULT_ADDR="http://127.0.0.1:18200"
@@ -331,7 +337,7 @@ It must not automatically:
 
 | Symptom | Meaning | Next action |
 | --- | --- | --- |
-| `Vault is sealed` | Vault needs the threshold of unseal shares | Run `vault operator unseal` interactively. |
+| `Vault is sealed` | Vault needs the threshold of unseal shares | Run `VAULT_ADDR=http://127.0.0.1:18200 vault operator unseal` interactively. |
 | `permission denied` | The current token lacks the required policy | Use the approved operator login; do not add broad policy automatically. |
 | `port is already in use` | Another process owns the configured listener | Inspect the port, stop only a process you own, then retry. |
 | E2E says a port is not listening on Ubuntu | The test environment may lack common port tools | Confirm the checkout includes the Python socket fallback and rerun. |

@@ -276,10 +276,11 @@ the required unseal shares in secure external custody. Then run the printed
 `vault operator unseal` command with enough different shares to reach the
 threshold. LocalClaw does not capture or store this material.
 
-If you are following the flow manually, the unseal command is the standard
-Vault CLI command and you run it once per share:
+If you are following the flow manually, set `VAULT_ADDR` to the local listener
+first, then run the standard Vault CLI command once per share:
 
 ```sh
+export VAULT_ADDR="http://127.0.0.1:18200"
 vault operator unseal
 ```
 
@@ -303,10 +304,15 @@ After confirming the admin login works, revoke the initial root token:
 
 Keep the unseal shares. They are required if Vault seals again.
 
-Once the admin login exists, the stack mints its short-lived least-privilege
-session tokens with the standard Vault CLI token-create flow:
+Once the admin login exists, keep `VAULT_ADDR` pointed at the local listener
+and mint the short-lived least-privilege session tokens with the standard
+Vault CLI token-create flow:
+
+Use `export`, not `set`, so the address stays in scope for the later Vault
+commands in the same shell.
 
 ```sh
+export VAULT_ADDR="http://127.0.0.1:18200"
 vault token create -role=agent-session -policy=agent -ttl=8h
 vault token create -role=backup-session -policy=backup -ttl=8h
 ```
@@ -317,7 +323,8 @@ the backup path.
 ### 4. Add the secrets that OpenClaw should receive
 
 Use the Vault CLI with an approved operator/admin token supplied interactively.
-The exact path must match the mount/path/field entries in `secrets.map`:
+Set `VAULT_ADDR` first, then use the exact path that matches the mount/path/field
+entries in `secrets.map`:
 
 ```sh
 export VAULT_ADDR="http://127.0.0.1:18200"
