@@ -42,3 +42,4 @@ body{background:radial-gradient(circle at 50% -12%,#172f46 0%,#0b1727 42%,#050b1
 .project-github .project-mark{background:#303743;color:#e2edf5}
 @media(max-width:900px){.built-on-heading{grid-template-columns:1fr 1fr}.built-on-heading p{grid-column:2}.built-on-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:540px){.built-on{padding:72px 0 10px}.built-on-heading{display:block}.built-on-heading h2{margin:18px 0}.built-on-heading p{max-width:450px}.built-on-grid{grid-template-columns:repeat(2,1fr)}.project-link{min-height:112px;padding:16px 14px}.origin-note{width:100%;margin-left:0;text-align:center;white-space:normal}}
+.button-outline{color:#eef5f3;border-color:#6f929c}
