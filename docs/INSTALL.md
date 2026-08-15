@@ -283,6 +283,12 @@ Vault CLI command and you run it once per share:
 vault operator unseal
 ```
 
+If you need to stop the foreground Vault from another terminal, use:
+
+```sh
+./localclaw vault-stop
+```
+
 Configure the KV mount, policies, admin login, and short-lived session roles:
 
 ```sh

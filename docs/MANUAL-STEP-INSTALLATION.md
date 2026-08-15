@@ -144,6 +144,12 @@ command and you run it once per share:
 vault operator unseal
 ```
 
+If you need to stop the foreground Vault from another terminal, use:
+
+```sh
+scripts/vault-stop
+```
+
 Configure the local KV mount, policies, admin login, and short-lived session
 roles:
 

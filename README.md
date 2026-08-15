@@ -40,9 +40,9 @@ database.
 > update, doctor, backup, and credential-adapter entry point. This repository ships documentation,
 > configuration templates, Vault policies, the SQL schema, workspace templates,
 > and the scripts: `install`, `bootstrap`, `vault-bootstrap`, the read-only
-> `doctor`, the foreground `vault-start`, the foreground session launcher
-> `work-session`, the age-encrypted `backup`, the read-only-by-default `restore`,
-> and the plan-by-default `uninstall`. A full new-machine
+> `doctor`, the foreground `vault-start`, the companion `vault-stop`, the
+> foreground session launcher `work-session`, the age-encrypted `backup`, the
+> read-only-by-default `restore`, and the plan-by-default `uninstall`. A full new-machine
 > `rebuild-laptop` remains manual by design (see
 > [`docs/BACKUP-RESTORE.md`](docs/BACKUP-RESTORE.md) and
 > [CHANGELOG.md](CHANGELOG.md)). Running these scripts still **does not** install
@@ -175,6 +175,7 @@ installer should run and the actions it must never automate—start with
    and initializes the work-memory DB. Then edit `stack.conf` (and
    `secrets.map`) — see [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 4. **Start Vault:** `make vault-start` in a dedicated terminal (foreground).
+   If you need to stop it from another terminal, run `make vault-stop`.
 5. **Initialize Vault yourself.** `scripts/vault-bootstrap init` prints the
    exact `vault operator init`/`unseal` commands for *you* to run; record the
    recovery material in external custody. The stack never views or stores
@@ -208,7 +209,7 @@ Day-to-day commands and troubleshooting live in
 ├── SECURITY.md                   How to report a vulnerability.
 ├── CHANGELOG.md                  Release notes / roadmap.
 ├── VERSION                       Current version (0.1.0).
-├── Makefile                      Thin wrappers: doctor, vault-start, backup, restore, uninstall, check, test, clean.
+├── Makefile                      Thin wrappers: doctor, vault-start, vault-stop, backup, restore, uninstall, check, test, clean.
 ├── .gitignore / .editorconfig    Repo hygiene (secrets & state never tracked).
 ├── config/
 │   ├── stack.conf.example        Non-secret stack settings (copy & edit).
@@ -229,6 +230,7 @@ Day-to-day commands and troubleshooting live in
 │   ├── vault-bootstrap           Guide Vault init; write policies/roles; revoke root.
 │   ├── doctor                    Read-only preflight checks (no changes).
 │   ├── vault-start               Foreground, loopback-only Vault server.
+│   ├── vault-stop                Stop the foreground Vault and free its port.
 │   ├── work-session              Foreground launcher (owns Vault + loopback gateway/TUI).
 │   ├── backup                    age-encrypted Vault snapshot backup (Daily/Weekly).
 │   ├── restore                   Inspect/restore a backup (read-only by default).

@@ -59,6 +59,7 @@ This sequence is done **by you**, once. The tooling never sees your unseal or
 recovery material.
 
 1. Start Vault (`make vault-start`) in a dedicated terminal.
+   If you need to stop it from another terminal, run `make vault-stop`.
 2. In another terminal, initialize it **yourself** and record the recovery
    material in your secret manager:
 

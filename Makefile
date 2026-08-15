@@ -44,6 +44,10 @@ vault-start: ## Start the isolated local Vault in the FOREGROUND (Ctrl-C to stop
 	@echo "Starting foreground, loopback-only Vault. Stop with Ctrl-C."
 	@scripts/vault-start
 
+.PHONY: vault-stop
+vault-stop: ## Stop the isolated local Vault and free its port.
+	@scripts/vault-stop
+
 .PHONY: vault-bootstrap
 vault-bootstrap: ## Guide Vault init/policies/roles (interactive; you hold all secrets).
 	@scripts/vault-bootstrap init
@@ -84,7 +88,7 @@ ifeq ($(SHELLCHECK),)
 else
 	@echo "Linting shell scripts with $(SHELLCHECK)..."
 	@$(SHELLCHECK) -x scripts/install scripts/bootstrap scripts/doctor \
-		scripts/vault-start scripts/vault-bootstrap scripts/work-session \
+		scripts/vault-start scripts/vault-stop scripts/vault-bootstrap scripts/work-session \
 		scripts/backup scripts/restore scripts/uninstall scripts/update scripts/credentials localclaw \
 		scripts/ci-local scripts/release scripts/lib/common.sh
 endif

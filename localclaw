@@ -7,7 +7,8 @@ usage() {
 Usage: localclaw <command> [options]
 
 Commands: setup, install, bootstrap, doctor, update, credentials, backup verify,
-          restore, vault-start, vault-bootstrap, work-session, uninstall.
+          restore, vault-start, vault-stop, vault-bootstrap, work-session,
+          uninstall.
 
 Guided setup:
   localclaw setup                 Install, update-check, bootstrap, doctor, test, E2E
@@ -66,7 +67,7 @@ setup() {
 }
 case "${1:-}" in
   setup) shift; setup "$@" ;;
-  install|doctor|update|credentials|bootstrap|vault-start|vault-bootstrap|work-session|restore|uninstall)
+  install|doctor|update|credentials|bootstrap|vault-start|vault-stop|vault-bootstrap|work-session|restore|uninstall)
     command="${ROOT}/scripts/${1}"; shift; exec "${command}" "$@" ;;
   backup)
     shift
