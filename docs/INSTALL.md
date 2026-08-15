@@ -390,6 +390,18 @@ confirmed it works, revoke the root token with
 `scripts/vault-bootstrap revoke-root` and delete it from your password
 manager — keep the unseal shares.
 
+If you are using a password manager, store the recovery material as separate
+items so you do not paste the wrong value later:
+
+- one entry for the **root token**;
+- one entry for each **unseal share** (`unseal share 1`, `unseal share 2`,
+  and so on);
+- a clear label such as `LocalClaw Vault recovery`;
+- a dedicated folder/vault if your provider supports one.
+
+Do not combine the root token, unseal shares, backup identity, or unrelated
+secrets in the same record.
+
 > **Password-manager adapters.** The optional `localclaw credentials` workflow
 > supports Bitwarden, 1Password, and LastPass for retrieving the private age
 > identity during backup verification. It does not store provider passwords,

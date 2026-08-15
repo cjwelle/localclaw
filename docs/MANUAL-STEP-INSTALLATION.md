@@ -174,6 +174,18 @@ scripts/vault-bootstrap revoke-root
 
 Do not revoke the unseal shares; they are needed if Vault seals again.
 
+If you are using a password manager, store the recovery material as separate
+items so you do not paste the wrong value later:
+
+- one entry for the **root token**;
+- one entry for each **unseal share** (`unseal share 1`, `unseal share 2`,
+  and so on);
+- a clear label such as `LocalClaw Vault recovery`;
+- a dedicated folder/vault if your provider supports one.
+
+Do not combine the root token, unseal shares, backup identity, or unrelated
+secrets in the same record.
+
 After the admin login exists, keep `VAULT_ADDR` pointed at the local listener
 and mint the same short-lived least-privilege session tokens with the standard
 Vault CLI token-create flow:
