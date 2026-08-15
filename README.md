@@ -54,6 +54,10 @@ database.
 > security-minded review. Please open an issue or discussion on GitHub before
 > relying on it for a critical workstation or production workflow.
 
+> **AI-built · human-created · human-validated.** AI assists with implementation
+> and iteration, while the project direction, security decisions, code review,
+> testing, and operational validation remain human-led.
+
 > **Password-manager support status:** Bitwarden is the only password-manager
 > integration tested by the project so far. 1Password and LastPass are planned
 > for future testing and validation; they are supported as implementation
