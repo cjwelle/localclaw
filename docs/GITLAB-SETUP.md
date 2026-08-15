@@ -18,7 +18,7 @@ Create a blank private project in the GitLab UI with no generated README,
 license, or `.gitignore`. Record its SSH URL, then run from the repository root:
 
 ```sh
-export GITLAB_SSH_URL='git@git.3rd.zone:zivo/localclaw.git'
+export GITLAB_SSH_URL='git@gitlab.example.com:group/localclaw.git'
 git remote add origin "$GITLAB_SSH_URL"
 git remote -v
 ```

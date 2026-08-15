@@ -3,7 +3,6 @@
 Canonical repositories:
 
 - GitHub: <https://github.com/cjwelle/localclaw>
-- GitLab mirror/CI: <https://git.3rd.zone/zivo/localclaw>
 
 The `website/` directory contains the landing page deployed to
 <https://localclaw.bot>.
@@ -120,6 +119,9 @@ flow.
 
 - **macOS** via [Homebrew][brew].
 - **Ubuntu / Debian** via `apt` (plus HashiCorp's apt repository for Vault).
+- **Windows Subsystem for Linux (WSL)** is not tested by the project, but should
+  work when you follow the Ubuntu / Debian instructions from inside an Ubuntu
+  distribution. Windows-native execution is not currently supported.
 
 The scripts target Bash 3.2+ (so they run on the stock macOS shell) and avoid
 Bash 4-only features. Exact tested OS versions are a
