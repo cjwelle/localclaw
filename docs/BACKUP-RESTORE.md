@@ -61,6 +61,29 @@ command -v op       # 1Password
 command -v lpass    # LastPass
 ```
 
+Sample login flows:
+
+```sh
+# Bitwarden
+bw login you@example.com
+export BW_SESSION="$(bw unlock --raw)"
+bw status
+
+# 1Password
+op account add --address my.1password.com --email you@example.com
+op read "op://Private/LocalClaw-backup-identity/notes"
+
+# LastPass
+lpass login you@example.com
+lpass status
+```
+
+Pick one provider, log into that provider first, and then run only the
+matching `./localclaw credentials configure --provider ...` command for that
+same provider. The login step authenticates the provider CLI; the configure
+step stores the provider-specific reference to the secure note that holds the
+age identity.
+
 Use only one of these configuration commands. The reference is not the secret;
 it is the provider-specific pointer to the secure note.
 

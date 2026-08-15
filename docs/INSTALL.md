@@ -173,6 +173,29 @@ vendor's official instructions and complete MFA/security-key approval yourself:
 - [LastPass CLI documentation](https://github.com/lastpass/lastpass-cli):
   authenticate with `lpass login`.
 
+Sample login flows:
+
+```sh
+# Bitwarden
+bw login you@example.com
+export BW_SESSION="$(bw unlock --raw)"
+bw status
+
+# 1Password
+op account add --address my.1password.com --email you@example.com
+op read "op://Private/LocalClaw-backup-identity/notes"
+
+# LastPass
+lpass login you@example.com
+lpass status
+```
+
+Pick the provider you actually use, log into that provider first, and then use
+only the matching `credentials configure` command below. The login step and the
+configure step are separate: login authenticates the provider CLI, while
+`credentials configure` stores the provider-specific reference to your secure
+note.
+
 Check the selected CLI without exposing credentials:
 
 ```sh
@@ -209,9 +232,28 @@ Review the generated owner-only files:
 
 ```sh
 CFG="${XDG_CONFIG_HOME:-$HOME/.config}/localclaw"
+
+# Set these if your shell does not already define an editor.
+export EDITOR="nano"
+export VISUAL="nano"
+
 $EDITOR "$CFG/stack.conf"
 $EDITOR "$CFG/secrets.map"
 ```
+
+`EDITOR` and `VISUAL` must be set to an editor command before running the two
+commands above. Otherwise, zsh may try to execute the filenames and report a
+permission or command error. The exports above apply only to the current
+terminal. To set Nano permanently for future zsh sessions, add them to
+`~/.zshrc` and reload the file:
+
+```sh
+printf '\nexport EDITOR="nano"\nexport VISUAL="nano"\n' >> ~/.zshrc
+source ~/.zshrc
+```
+
+If you use VS Code instead, use `export EDITOR="code --wait"` and
+`export VISUAL="code --wait"`.
 
 Keep Vault loopback-only (`VAULT_HOST=127.0.0.1`). `secrets.map` contains only
 Vault paths and field names, never secret values. Add the public age recipient
