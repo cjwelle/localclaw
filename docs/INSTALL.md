@@ -335,6 +335,13 @@ unset VAULT_ADDR VAULT_TOKEN
 
 Do not paste real secrets into shell history, chat, Git, or `secrets.map`.
 
+Optional: if you need to stop the foreground Vault from the second terminal
+before step 5, use:
+
+```sh
+./localclaw vault-stop
+```
+
 ### 5. Verify and run the first real session
 
 ```sh
