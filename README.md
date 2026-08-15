@@ -129,7 +129,10 @@ Bash 4-only features. Exact tested OS versions are a
 
 ## Prerequisites
 
-You install these yourself (this project does not install anything for you):
+These are the prerequisites LocalClaw checks. The installer can install
+supported missing tools through the platform package manager when you explicitly
+approve it with `--apply`; Git and the package-manager bootstrap may need to be
+available first:
 
 - `vault` — HashiCorp Vault CLI/server
 - `sqlite3` — work-memory database
@@ -142,8 +145,9 @@ You install these yourself (this project does not install anything for you):
   the `extended-stable` channel: `npm install -g openclaw@extended-stable`.
 - `shellcheck` — optional, for contributors
 
-`scripts/install` (plan only, or `--apply` to install) sets these up via your
-package manager. Run `make doctor` (or `scripts/doctor`) at any time — it is
+`scripts/install` (plan only by default, or `--apply` to install after
+confirmation) sets these up via your package manager. Run `make doctor` (or
+`scripts/doctor`) at any time — it is
 **read-only** and reports what is present, missing, and whether permissions are
 correct.
 
