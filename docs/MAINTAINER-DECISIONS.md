@@ -43,31 +43,35 @@ Each item lists what to decide, where it is referenced, and how to record it.
 
 ## 4. Tested OS versions
 
-- [ ] Record the exact macOS and Ubuntu/Debian versions you have tested on
-  (e.g. macOS 14/15; Ubuntu 22.04/24.04; Debian 12).
+- [x] **Resolved for the current macOS host:** macOS `15.7.7` is the validated
+  native host used for the latest docs and installer checks.
 - **Why it matters:** the scripts target Bash 3.2 and POSIX-ish tooling, but the
   Vault/age/apt specifics vary by release.
-- **Where referenced:** `README.md` (Supported platforms), `docs/INSTALL.md`.
-- **Record by:** adding a "Tested on" list to the README and INSTALL docs.
+- **Where referenced:** `README.md` (Supported platforms),
+  `docs/INSTALL.md`.
+- **Record by:** updating the supported-platform notes when new OS releases are
+  validated.
 
 ## 5. Version / compatibility matrix
 
-- [ ] Pin the supported (or minimum) versions of the external tools:
+- [x] **Resolved for the current matrix:** the README now lists the validated
+  versions and supported baselines for the core external tools.
+  Pin the supported (or minimum) versions of the external tools:
   `vault`, `openclaw`, `age`, `sqlite3`, Bash.
 - **Why it matters:** Vault storage/API and OpenClaw's config schema can change
   between releases; the minimal `openclaw.json` is deliberately non-authoritative.
 - **Where referenced:** `README.md` (Prerequisites), `docs/INSTALL.md`,
   `config/openclaw.json.example` (schema caveat).
-- **Record by:** adding a compatibility matrix (tool → tested/min version) to the
-  README or INSTALL, and bumping `VERSION` per SemVer when it changes.
+- **Record by:** extending the compatibility matrix (tool → tested/min version)
+  in the README or INSTALL, and bumping `VERSION` per SemVer when it changes.
 
   | Tool | Tested version | Minimum |
   | --- | --- | --- |
-  | vault | _TBD_ | _TBD_ |
-  | openclaw | _TBD_ | _TBD_ |
-  | age | _TBD_ | _TBD_ |
-  | sqlite3 | _TBD_ | _TBD_ |
-  | bash | 3.2 | 3.2 |
+  | vault | 2.0.3 | Published supported release line |
+  | openclaw | 2026.7.1-2 | `extended-stable` channel |
+  | age | package-manager provided | Required for backups |
+  | sqlite3 | 3.43.2 | Working CLI on the supported OSes |
+  | bash | 3.2.57 | 3.2 |
 
 ## 6. Security contact — RESOLVED
 
@@ -88,7 +92,7 @@ Each item lists what to decide, where it is referenced, and how to record it.
 - [ ] Namespace, links, and placeholders resolved.
 - [x] Support policy and response expectations written (`SECURITY.md`).
 - [ ] Tested OS versions listed.
-- [ ] Tool version/compatibility matrix filled in.
+- [x] Tool version/compatibility matrix filled in.
 - [x] Real security contact in `SECURITY.md`.
 - [ ] `make doctor` and `make check` pass on each tested OS.
 - [ ] A final scan confirms **no** secrets, personal names, emails, absolute home

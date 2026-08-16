@@ -30,6 +30,8 @@
 | `openclaw` | The gateway / terminal UI | Yes (official npm package) |
 | `shellcheck` | Linting scripts (contributors) | Optional |
 
+For the current validated version set, see the matrix in [`README.md`](../README.md).
+
 ### Password-manager prerequisites
 
 Bitwarden is currently the only tested provider. The 1Password and LastPass

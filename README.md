@@ -180,6 +180,23 @@ start background services or register them with launchd/systemd. Run `make
 doctor` (or `scripts/doctor`) at any time — it is **read-only** and reports
 what is present, missing, and whether permissions are correct.
 
+### Tested / supported versions
+
+The repo is validated against these versions on the current macOS host:
+
+| Component | Validated version | Supported baseline |
+| --- | --- | --- |
+| macOS | 15.7.7 | Native host coverage runs on macOS; exact tested versions are tracked in `docs/MAINTAINER-DECISIONS.md`. |
+| Bash | 3.2.57 | 3.2+ |
+| Vault | 2.0.3 | Published release lines only; see `SECURITY.md` and `docs/VERSIONING.md`. |
+| OpenClaw | 2026.7.1-2 | `extended-stable` channel. |
+| sqlite3 | 3.43.2 | Package-manager provided CLI; the repo validates that a working `sqlite3` is present. |
+| age / age-keygen | _not recorded on this host_ | Required for encrypted backups; install from Homebrew or apt. |
+
+If you are testing on a different OS or package set, update the maintainer
+decision checklist and the versioning docs together so the support story stays
+consistent.
+
 ## Quick start
 
 > Read [`docs/INSTALL.md`](docs/INSTALL.md) first. Restore/disaster-recovery
