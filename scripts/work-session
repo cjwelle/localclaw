@@ -259,6 +259,77 @@ validate_secret_mapping() {
     || fail "Invalid Vault field name in secrets.map: ${kv_field}"
 }
 
+password_manager_cli() {
+  case "$1" in
+    bitwarden) printf 'bw\n' ;;
+    1password) printf 'op\n' ;;
+    lastpass) printf 'lpass\n' ;;
+    *) return 1 ;;
+  esac
+}
+
+normalize_share_line() {
+  printf '%s' "$1" | tr -d '[:space:]'
+}
+
+fetch_password_manager_note() {
+  local provider="$1" ref="$2" output="$3"
+  local cli unlocked=0 session password
+  cli="$(password_manager_cli "${provider}")" || fail "Unsupported password-manager provider: ${provider}"
+  have "${cli}" || fail "${cli} not found; install the configured password-manager CLI."
+  : > "${output}"
+  chmod 600 "${output}"
+  case "${provider}" in
+    bitwarden)
+      if ! bw status 2>/dev/null | jq -e '.status == "unlocked"' >/dev/null 2>&1 || [ -z "${BW_SESSION:-}" ]; then
+        password="$(read_secret 'Bitwarden master password (hidden)')"
+        [ -n "${password}" ] || fail "No Bitwarden master password entered."
+        session="$(BW_PASSWORD="${password}" bw unlock --passwordenv BW_PASSWORD --raw 2>/dev/null)" \
+          || fail "Bitwarden unlock failed."
+        unset password
+        unlocked=1
+      else
+        session="${BW_SESSION}"
+      fi
+      BW_SESSION="${session}" bw get notes "${ref}" > "${output}" 2>/dev/null \
+        || fail "Unable to read Bitwarden secure note '${ref}'."
+      if [ "${unlocked}" -eq 1 ]; then BW_SESSION="${session}" bw lock >/dev/null 2>&1 || true; fi
+      unset session
+      ;;
+    1password)
+      op read "${ref}" > "${output}" 2>/dev/null \
+        || fail "Unable to read 1Password reference '${ref}'."
+      ;;
+    lastpass)
+      if ! lpass status >/dev/null 2>&1; then
+        lpass login || fail "LastPass login failed."
+        unlocked=1
+      fi
+      lpass show --notes "${ref}" > "${output}" 2>/dev/null \
+        || fail "Unable to read LastPass secure note '${ref}'."
+      if [ "${unlocked}" -eq 1 ]; then lpass logout >/dev/null 2>&1 || true; fi
+      ;;
+  esac
+  chmod 600 "${output}"
+}
+
+read_unseal_shares_from_password_manager() {
+  local provider="$1" ref="$2" output="$3"
+  local tmpfile line share count=0
+  tmpfile="${output}.raw"
+  fetch_password_manager_note "${provider}" "${ref}" "${tmpfile}"
+  : > "${output}"
+  chmod 600 "${output}"
+  while IFS= read -r line || [ -n "${line}" ]; do
+    share="$(normalize_share_line "${line}")"
+    case "${share}" in ''|'#'*) continue ;; esac
+    printf '%s\n' "${share}" >> "${output}"
+    count=$((count + 1))
+  done < "${tmpfile}"
+  rm -f "${tmpfile}"
+  [ "${count}" -gt 0 ] || fail "Password-manager note '${ref}' contained no unseal shares."
+}
+
 # ===========================================================================
 # Dry run: validate everything we can without starting a service or touching
 # secrets. Safe to run with stub binaries and a throwaway HOME.
@@ -453,25 +524,52 @@ if [ "${LOCALCLAW_E2E:-}" = "1" ]; then
 fi
 vault_is_initialized || fail "Vault is not initialized. Run scripts/vault-bootstrap init first."
 
-# --- 2) Unseal (hidden prompts) --------------------------------------------
+# --- 2) Unseal (hidden prompts or password-manager recovery note) ----------
 case "$(vault_is_sealed; echo $?)" in
   0)
-    info "Vault is sealed. Enter distinct unseal shares (hidden) until it unseals."
-    while :; do
-      case "$(vault_is_sealed; echo $?)" in
-        1) break ;;
-        2) fail "Unable to read Vault seal status." ;;
-      esac
-      share="$(read_secret 'Unseal share (hidden)')"
-      if [ -z "${share}" ]; then
-        warn "An unseal share is required."
-        continue
+    if [ "${CREDENTIAL_PROVIDER}" != "none" ]; then
+      unseal_ref="${VAULT_UNSEAL_REF:-}"
+      if [ -z "${unseal_ref}" ] && [ -n "${LOCALCLAW_PROJECT}" ]; then
+        project_ref_var="$(project_unseal_ref_var)"
+        unseal_ref="${!project_ref_var:-}"
       fi
-      if ! printf '%s' "${share}" | vault_local operator unseal - >/dev/null 2>&1; then
-        warn "That share was rejected; try another valid share."
+      if [ -z "${unseal_ref}" ]; then
+        unseal_ref="$(read_secret 'Vault unseal note reference (hidden)')"
       fi
-      unset share
-    done
+      [ -n "${unseal_ref}" ] || fail "A Vault unseal note reference is required."
+      unseal_file="${session_tmp}/unseal-shares"
+      read_unseal_shares_from_password_manager "${CREDENTIAL_PROVIDER}" "${unseal_ref}" "${unseal_file}"
+      info "Vault is sealed. Reading unseal shares from the configured password manager."
+      while IFS= read -r share || [ -n "${share}" ]; do
+        case "$(vault_is_sealed; echo $?)" in
+          1) break ;;
+          2) fail "Unable to read Vault seal status." ;;
+        esac
+        if ! printf '%s' "${share}" | vault_local operator unseal - >/dev/null 2>&1; then
+          warn "A stored unseal share was rejected."
+        fi
+      done < "${unseal_file}"
+      rm -f "${unseal_file}"
+      unset unseal_ref project_ref_var share
+      [ "$(vault_is_sealed; echo $?)" -eq 1 ] || fail "Stored unseal shares were insufficient to unseal Vault."
+    else
+      info "Vault is sealed. Enter distinct unseal shares (hidden) until Vault is unsealed."
+      while :; do
+        case "$(vault_is_sealed; echo $?)" in
+          1) break ;;
+          2) fail "Unable to read Vault seal status." ;;
+        esac
+        share="$(read_secret 'Unseal share (hidden)')"
+        if [ -z "${share}" ]; then
+          warn "An unseal share is required."
+          continue
+        fi
+        if ! printf '%s' "${share}" | vault_local operator unseal - >/dev/null 2>&1; then
+          warn "That share was rejected; try another valid share."
+        fi
+        unset share
+      done
+    fi
     ;;
   1) : ;;  # already unsealed
   *) fail "Unable to read Vault seal status." ;;

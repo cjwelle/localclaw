@@ -72,6 +72,8 @@ AGE_KEYGEN_BIN="age-keygen"
 SECRET_BACKEND="vault"
 CREDENTIAL_PROVIDER="none"
 BACKUP_IDENTITY_REF=""
+VAULT_UNSEAL_REF=""
+LOCALCLAW_PROJECT=""
 # Generic backup destination. Deliberately empty: the operator must choose a
 # directory (local or cloud-synced) during bootstrap. No tenant is baked in.
 BACKUP_DIR=""
@@ -134,6 +136,25 @@ detect_os() {
 
 vault_addr() { printf 'http://%s:%s\n' "${VAULT_HOST}" "${VAULT_PORT}"; }
 
+project_scope_prefix() {
+  local raw="${LOCALCLAW_PROJECT:-}" prefix
+  [ -n "${raw}" ] || return 1
+  prefix="$(printf '%s' "${raw}" | tr '[:lower:]' '[:upper:]' | tr -cs 'A-Z0-9_' '_')"
+  prefix="${prefix#_}"
+  prefix="${prefix%_}"
+  case "${prefix}" in
+    '') fail "LOCALCLAW_PROJECT resolves to an empty scope; use letters/numbers/dashes/underscores." ;;
+    [0-9]*) prefix="P_${prefix}" ;;
+  esac
+  printf '%s' "${prefix}"
+}
+
+project_unseal_ref_var() {
+  local prefix
+  prefix="$(project_scope_prefix)" || return 1
+  printf '%s_VAULT_UNSEAL_REF' "${prefix}"
+}
+
 # ---------------------------------------------------------------------------
 # Configuration loading. stack.conf is a restricted KEY=VALUE file; we do not
 # `source` arbitrary shell, we parse a known allow-list of keys instead.
@@ -173,6 +194,14 @@ load_stack_config() {
       SECRET_BACKEND)      SECRET_BACKEND="${value}" ;;
       CREDENTIAL_PROVIDER) CREDENTIAL_PROVIDER="${value}" ;;
       BACKUP_IDENTITY_REF) BACKUP_IDENTITY_REF="${value}" ;;
+      VAULT_UNSEAL_REF)    VAULT_UNSEAL_REF="${value}" ;;
+      LOCALCLAW_PROJECT)   LOCALCLAW_PROJECT="${value}" ;;
+      *_VAULT_UNSEAL_REF)
+        if printf '%s' "${key}" | grep -Eq '^[A-Z_][A-Z0-9_]*_VAULT_UNSEAL_REF$'; then
+          printf -v "${key}" '%s' "${value}"
+        else
+          warn "Ignoring unknown stack.conf key: ${key}"
+        fi ;;
       BACKUP_DIR)          BACKUP_DIR="${value}" ;;
       VAULT_KEY_SHARES)    VAULT_KEY_SHARES="${value}" ;;
       VAULT_KEY_THRESHOLD) VAULT_KEY_THRESHOLD="${value}" ;;
@@ -452,5 +481,16 @@ vault_require_unsealed() {
   vault_is_running || fail "Local Vault is not running on $(vault_addr). Start it with scripts/vault-start."
   if vault_is_sealed; then
     fail "Local Vault is sealed. Unseal it (or run scripts/work-session) first."
+  fi
+}
+
+# Return success when a foreground work-session launcher is running. Used by
+# read-only health checks to decide whether the local Vault probe is relevant.
+work_session_is_running() {
+  local pattern='(^|[[:space:]/])scripts/work-session([[:space:]]|$)'
+  if have pgrep; then
+    pgrep -f "${pattern}" >/dev/null 2>&1
+  else
+    ps -axww -o command= 2>/dev/null | grep -Eq "${pattern}"
   fi
 }

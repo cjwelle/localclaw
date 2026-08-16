@@ -99,6 +99,22 @@ esac
 if [ "${SECRET_BACKEND}" = "vault" ] && [ "${CREDENTIAL_PROVIDER}" != none ] && [ -z "${BACKUP_IDENTITY_REF}" ]; then
   fault "BACKUP_IDENTITY_REF is empty for configured password-manager provider"
 fi
+if [ "${CREDENTIAL_PROVIDER}" != none ]; then
+  if [ -n "${LOCALCLAW_PROJECT}" ]; then
+    project_ref_var="$(project_unseal_ref_var 2>/dev/null || true)"
+    if [ -n "${project_ref_var}" ] && [ -n "${!project_ref_var:-}" ]; then
+      pass "Project-scoped unseal ref present: ${project_ref_var}"
+    elif [ -n "${VAULT_UNSEAL_REF}" ]; then
+      pass "Generic unseal ref present for ${LOCALCLAW_PROJECT}"
+    else
+      note "No unseal ref set; work-session will prompt for the note reference at launch"
+    fi
+  elif [ -n "${VAULT_UNSEAL_REF}" ]; then
+    pass "Unseal ref present"
+  else
+    note "VAULT_UNSEAL_REF is empty; work-session will prompt for the note reference at launch"
+  fi
+fi
 
 if [ -n "${BACKUP_DIR}" ]; then
   if ( validate_backup_dir "${BACKUP_DIR}" ) 2>/dev/null; then
@@ -160,15 +176,19 @@ case "${os}" in
 esac
 
 head2 "Local Vault (read-only probe)"
-if port_is_listening "${VAULT_PORT}"; then
-  if vault_is_initialized; then pass "Vault initialized"; else note "Vault not initialized (run scripts/vault-bootstrap init)"; fi
-  case "$(vault_is_sealed; echo $?)" in
-    0) note "Vault is sealed (unseal during scripts/work-session)" ;;
-    1) pass "Vault is unsealed" ;;
-    *) note "could not read Vault seal status" ;;
-  esac
+if work_session_is_running; then
+  if port_is_listening "${VAULT_PORT}"; then
+    if vault_is_initialized; then pass "Vault initialized"; else note "Vault not initialized (run scripts/vault-bootstrap init)"; fi
+    case "$(vault_is_sealed; echo $?)" in
+      0) note "Vault is sealed (unseal during scripts/work-session)" ;;
+      1) pass "Vault is unsealed" ;;
+      *) note "could not read Vault seal status" ;;
+    esac
+  else
+    fault "work-session is running but Vault is not listening on port ${VAULT_PORT}"
+  fi
 else
-  note "Vault is not running on port ${VAULT_PORT} (start with scripts/vault-start)"
+  pass "Local Vault probe skipped (no work-session process detected)"
 fi
 
 head2 "Summary"

@@ -2,14 +2,62 @@
 
 > **Start here if you want the full guided path:**
 > [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md) walks from a fresh clone through Vault,
-> the first OpenClaw session, backups, and tests. This file
-> remains the detailed prerequisite and platform reference.
+> the first OpenClaw session, backups, and tests. Use it for the platform-
+> specific install commands and OpenClaw installation details.
 
 > **Official OpenClaw resources** (this repo is an independent hardening layer,
 > not a fork): project <https://openclaw.ai/> · install docs
 > <https://docs.openclaw.ai/install> · installer <https://openclaw.ai/install.sh>.
 > Prefer the upstream docs for OpenClaw itself; always review any downloaded
-> installer before running it (never curl-pipe into a shell). See §4.
+> installer before running it (never curl-pipe into a shell).
+
+## 1. Prerequisites
+
+| Tool | Purpose | Required? |
+| --- | --- | --- |
+| `vault` | Local secrets engine (server + CLI) | Yes |
+| `sqlite3` | Work-memory database | Yes |
+| `node`, `npm` | Runtime to install/run OpenClaw | Yes (for OpenClaw) |
+| `jq` | JSON parsing in scripts | Yes |
+| `git`, `curl` | Repo tooling / fetching the Vault apt key | Yes |
+| `tmux` | Terminal session management | Yes |
+| `tar` | Packaging backups | Yes (for backups) |
+| `shasum` or `sha256sum` | Integrity checks | Yes |
+| `age`, `age-keygen` | Encrypted backups | Optional (backups) |
+| `bw` | Bitwarden backup-key retrieval | Optional (if using Bitwarden) |
+| `op` | 1Password backup-key retrieval | Optional (if using 1Password) |
+| `lpass` | LastPass backup-key retrieval | Optional (if using LastPass) |
+| `openclaw` | The gateway / terminal UI | Yes (official npm package) |
+| `shellcheck` | Linting scripts (contributors) | Optional |
+
+### Password-manager prerequisites
+
+Bitwarden is currently the only tested provider. The 1Password and LastPass
+adapters are intended to work with their standard CLIs, but remain untested and
+should be considered experimental until the project validates them.
+
+The Bitwarden, 1Password, and LastPass integrations are optional. To use one,
+you must have all of the following before running `./localclaw credentials configure`:
+
+1. An active account with the provider you selected. The account must be able
+   to read a secure note in its vault; organization-managed accounts must also
+   permit CLI access.
+2. The provider's official CLI installed and available on `PATH` (`bw`, `op`,
+   or `lpass`).
+3. Your provider master password plus any required MFA, security key, or
+   desktop approval. LocalClaw does not bypass provider authentication.
+4. `age` and `age-keygen`, plus the local `vault`, `tar`, and checksum tools.
+5. An age private identity saved in the provider and its matching public
+   recipient configured locally. The private identity must be a complete,
+   single key, not a password, unseal share, or mixed note.
+6. A bootstrapped LocalClaw installation and at least one encrypted backup made with
+   that matching public recipient. Run `./localclaw doctor` before setup.
+
+The provider CLI may need network access on its first sign-in. Do not place
+provider passwords, session tokens, age private identities, or Vault unseal
+shares in `stack.conf`, Git, shell history, or command-line arguments. Follow
+the detailed setup and verification procedure in
+[`BACKUP-RESTORE.md`](BACKUP-RESTORE.md).
 
 You can let `./localclaw install` **plan** the setup for you (it prints the exact
 package-manager commands and changes nothing), or follow the manual commands in
@@ -32,22 +80,6 @@ lifecycle test. See [`E2E.md`](E2E.md) for the disposable Vault details. It
 does not apply a code update unless you explicitly pass `--apply-update`;
 review the update check first. Use `--skip-tests` or `--skip-e2e` only when
 you have a specific reason.
-
-## Bootstrap prerequisites
-
-Before running any LocalClaw installer command, install these tools:
-
-1. **Git**, so you can clone the repository and pull future updates. Use the
-   official instructions at <https://git-scm.com/downloads>. On macOS, Apple's
-   Command Line Tools also provide Git; install them with `xcode-select
-   --install`.
-2. **Homebrew on macOS**, because LocalClaw uses it to install Vault, age, and
-   the other macOS prerequisites. Follow the official instructions at
-   <https://brew.sh/>. Homebrew is not installed automatically by LocalClaw.
-
-Ubuntu/Debian systems use `apt` instead of Homebrew. Git is still required
-before running the installer. After installing these bootstrap prerequisites,
-clone the repository and run `./localclaw setup`.
 
 ### Windows Subsystem for Linux (WSL)
 
@@ -428,6 +460,15 @@ confirmed it works, revoke the root token with
 `scripts/vault-bootstrap revoke-root` and delete it from your password
 manager — keep the unseal shares.
 
+If you want `scripts/work-session` to read the unseal shares automatically,
+store them in a secure note in the password manager configured by
+`CREDENTIAL_PROVIDER`, then set `VAULT_UNSEAL_REF` in `stack.conf` to that note
+reference. For multiple LocalClaws, set `LOCALCLAW_PROJECT` and use a scoped
+key like `ACME_VAULT_UNSEAL_REF` for that stack. Put one unseal share per line.
+If `VAULT_UNSEAL_REF` and the project-scoped key are both unset, the launcher
+prompts for the note reference at startup instead of falling back to manual
+share entry.
+
 If you are using a password manager, store the recovery material as separate
 items so you do not paste the wrong value later:
 
@@ -446,181 +487,7 @@ secrets in the same record.
 > session tokens, or unseal shares. See the step-by-step setup in
 > [`BACKUP-RESTORE.md`](BACKUP-RESTORE.md).
 
-## 1. Prerequisites
-
-| Tool | Purpose | Required? |
-| --- | --- | --- |
-| `vault` | Local secrets engine (server + CLI) | Yes |
-| `sqlite3` | Work-memory database | Yes |
-| `node`, `npm` | Runtime to install/run OpenClaw | Yes (for OpenClaw) |
-| `jq` | JSON parsing in scripts | Yes |
-| `git`, `curl` | Repo tooling / fetching the Vault apt key | Yes |
-| `tmux` | Terminal session management | Yes |
-| `tar` | Packaging backups | Yes (for backups) |
-| `shasum` or `sha256sum` | Integrity checks | Yes |
-| `age`, `age-keygen` | Encrypted backups | Optional (backups) |
-| `bw` | Bitwarden backup-key retrieval | Optional (if using Bitwarden) |
-| `op` | 1Password backup-key retrieval | Optional (if using 1Password) |
-| `lpass` | LastPass backup-key retrieval | Optional (if using LastPass) |
-| `openclaw` | The gateway / terminal UI | Yes (official npm package) |
-| `shellcheck` | Linting scripts (contributors) | Optional |
-
-### Password-manager prerequisites
-
-Bitwarden is currently the only tested provider. The 1Password and LastPass
-adapters are intended to work with their standard CLIs, but remain untested and
-should be considered experimental until the project validates them.
-
-The Bitwarden, 1Password, and LastPass integrations are optional. To use one,
-you must have all of the following before running `./localclaw credentials configure`:
-
-1. An active account with the provider you selected. The account must be able
-   to read a secure note in its vault; organization-managed accounts must also
-   permit CLI access.
-2. The provider's official CLI installed and available on `PATH` (`bw`, `op`,
-   or `lpass`).
-3. Your provider master password plus any required MFA, security key, or
-   desktop approval. LocalClaw does not bypass provider authentication.
-4. `age` and `age-keygen`, plus the local `vault`, `tar`, and checksum tools.
-5. An age private identity saved in the provider and its matching public
-   recipient configured locally. The private identity must be a complete,
-   single key—not a password, unseal share, or mixed note.
-6. A bootstrapped LocalClaw installation and at least one encrypted backup made with
-   that matching public recipient. Run `./localclaw doctor` before setup.
-
-The provider CLI may need network access on its first sign-in. Do not place
-provider passwords, session tokens, age private identities, or Vault unseal
-shares in `stack.conf`, Git, shell history, or command-line arguments. Follow
-the detailed setup and verification procedure in
-[`BACKUP-RESTORE.md`](BACKUP-RESTORE.md).
-
-## 2. macOS (Homebrew)
-
-Install [Homebrew](https://brew.sh/) first if you do not have it, then:
-
-```sh
-# Vault comes from HashiCorp's tap. Refresh the tap first if an older local
-# copy reports an unrelated formula-import error such as vagrant.rb.
-brew untap hashicorp/tap 2>/dev/null || true
-brew tap hashicorp/tap
-brew install hashicorp/tap/vault
-
-# If the tap reports an unrelated formula-import error such as vagrant.rb:
-# brew update
-# brew tap --repair
-# brew install hashicorp/tap/vault
-
-# Runtime for OpenClaw, plus supporting CLI tools.
-brew install node jq git curl tmux
-
-# Backups and database.
-brew install age
-# sqlite3 ships with macOS; install the Homebrew build only if you want a newer one:
-# brew install sqlite
-
-# Optional: for contributors.
-brew install shellcheck
-```
-
-> **Do not** register Vault as a Homebrew service. This stack runs Vault in the
-> foreground only. If you previously ran `brew services start vault`, stop and
-> remove it: `brew services stop vault`.
-
-macOS ships Bash 3.2 as `/bin/bash`; the scripts are written to run on it. You do
-**not** need to install a newer Bash.
-
-Enable **FileVault** full-disk encryption before storing any secrets
-(System Settings → Privacy & Security → FileVault). `scripts/doctor` checks this.
-
-## 3. Ubuntu / Debian (apt)
-
-Vault is distributed from HashiCorp's apt repository:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y gpg curl lsb-release
-
-# Add HashiCorp's GPG key and apt repository (review before running).
-curl -fsSL https://apt.releases.hashicorp.com/gpg \
-  | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
-  | sudo tee /etc/apt/sources.list.d/hashicorp.list
-
-sudo apt-get update
-sudo apt-get install -y vault sqlite3 age tar coreutils \
-  nodejs npm jq git curl tmux
-
-# Optional: for contributors.
-sudo apt-get install -y shellcheck
-```
-
-> Installing the `vault` package may create a systemd unit. This stack does not
-> use it. Ensure it is **not** enabled or running:
->
-> ```sh
-> sudo systemctl disable --now vault 2>/dev/null || true
-> ```
-
-Enable **full-disk encryption** (LUKS) before storing secrets. `scripts/doctor`
-attempts to detect an encrypted block device.
-
-## 4. Install OpenClaw
-
-OpenClaw is a **separate upstream project**; this stack wraps it and can install
-the official npm package when it is missing. Always use the official sources
-for the canonical package name and installation steps:
-
-- Project: <https://openclaw.ai/>
-- Install docs: <https://docs.openclaw.ai/install>
-- Development / release channels: <https://docs.openclaw.ai/install/development-channels>
-- Official installer script: <https://openclaw.ai/install.sh>
-
-OpenClaw is not distributed through Homebrew or apt. After Node/npm is ready,
-the confirmed `scripts/install --apply` workflow installs the official npm
-package shown in the upstream documentation. The installer does not create a
-launchd/systemd service or run OpenClaw in the background; start sessions
-explicitly with the documented foreground workflow.
-
-### Release channel
-
-This stack **defaults to the `extended-stable` release channel** for stability
-rather than the rolling `@latest` tag. Install by pinning that npm dist-tag:
-
-```sh
-npm install -g openclaw@extended-stable
-```
-
-To move an existing install onto (or keep it on) the same channel:
-
-```sh
-openclaw update --channel extended-stable
-```
-
-Choosing `extended-stable` is a **documented default, not a lock-in**: if you
-have a specific reason to track a faster-moving channel, you may override it
-(e.g. `npm install -g openclaw@latest` or `openclaw update --channel <other>`).
-Review the trade-offs first — the available channels and their release cadence
-are described at <https://docs.openclaw.ai/install/development-channels>.
-If your npm global prefix needs a different user context, run the command
-manually; avoid `sudo npm` unless your organization explicitly manages npm that
-way.
-
-If you prefer the official installer script, **download and read it before
-running it** — never pipe it straight into a shell:
-
-```sh
-# Review, then run the reviewed copy — do NOT `curl ... | sh`.
-curl -fsSL https://openclaw.ai/install.sh -o /tmp/openclaw-install.sh
-less /tmp/openclaw-install.sh          # read it end to end
-sh /tmp/openclaw-install.sh            # run only after you have reviewed it
-```
-
-Make sure the `openclaw` binary is on your `PATH`. The stack treats a missing
-`openclaw` as a warning (not a hard failure) so you can set up Vault first, and
-it expects sessions to stay **foreground-only** (no gateway service).
-
-## 5. Verify
+## 2. Verify
 
 Run the read-only preflight — it makes no changes:
 
@@ -631,7 +498,7 @@ make doctor      # or: scripts/doctor
 Fix any `[FAIL]` lines (missing tools, wrong permissions). `[WARN]` lines are
 advisory (e.g. OpenClaw not yet installed, backups not configured).
 
-## 6. Next steps
+## 3. Next steps
 
 1. [`CONFIGURATION.md`](CONFIGURATION.md) — copy and edit `stack.conf`, render
    templates, and initialize the work-memory database.
