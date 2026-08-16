@@ -36,6 +36,20 @@ Vault remains the recommended runtime backend. A password manager can also be
 configured alongside Vault for recovery and backup material without replacing
 Vault; select password-manager-only only when you explicitly want that tradeoff.
 
+## OpenClaw starter statements
+
+After `./localclaw setup`, the first OpenClaw prompt should match the secret
+mode you picked. Use one of these starter statements as the first message to
+OpenClaw:
+
+- **Vault only:** `I want a Vault-only OpenClaw setup on this machine. Use the LocalClaw docs and tell me the next step.`
+- **Vault + password manager:** `I want a Vault + password manager OpenClaw setup on this machine. My password manager is <Bitwarden|1Password|LastPass>. Use Vault for runtime secrets and the password manager for recovery or backup material. Use the LocalClaw docs and tell me the next step.`
+- **Password-manager only:** `I want a password-manager-only OpenClaw setup on this machine. My password manager is <Bitwarden|1Password|LastPass>. Use the LocalClaw docs and tell me the next step.`
+
+If you already know the local Vault is running, say so in the Vault-only or
+Vault + password manager variant. If you are not sure, let the setup guide you
+first and then use the matching starter statement when OpenClaw opens.
+
 ## Preflight (read-only)
 
 Run before anything else. It changes nothing and exits non-zero on a critical

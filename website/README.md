@@ -4,7 +4,8 @@ The canonical source repository is [github.com/cjwelle/localclaw](https://github
 
 The site copy mirrors the project docs: LocalClaw supports three session modes
 and Vault is optional to preinstall because the guided installer can provision
-it for Vault-backed sessions.
+it for Vault-backed sessions. The first OpenClaw message also has mode-specific
+starter statements in `docs/OPERATIONS.md`.
 
 A lightweight, dependency-free one-page site for [localclaw.bot](https://localclaw.bot).
 

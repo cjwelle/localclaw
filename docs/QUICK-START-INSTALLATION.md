@@ -123,7 +123,8 @@ move to the upstream OpenClaw onboarding entry point in the official docs:
 flow, or [`openclaw setup --baseline`](https://docs.openclaw.ai/cli/setup) if
 you only want to create the config/workspace folders first. Then continue with
 [`docs/CONFIGURATION.md`](CONFIGURATION.md) and
-[`docs/OPERATIONS.md`](OPERATIONS.md).
+[`docs/OPERATIONS.md`](OPERATIONS.md). For the first OpenClaw message, use the
+mode-specific starter statements in [`docs/OPERATIONS.md`](OPERATIONS.md#openclaw-starter-statements).
 
 ### Choose the session secret backend
 

@@ -3,7 +3,7 @@ const page = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="LocalClaw is a secure, self-hosted OpenClaw workstation for people who want their AI close, private, and under their control. Vault is optional when you already use a local vault, and the site supports Bitwarden, 1Password, and LastPass-backed flows.">
+  <meta name="description" content="LocalClaw is a secure, self-hosted OpenClaw workstation for people who want their AI close, private, and under their control. Vault is optional when you already use a local vault, and the site supports Bitwarden, 1Password, and LastPass-backed flows. The first OpenClaw message should match the secret mode you chose.">
   <meta name="theme-color" content="#07121f">
   <title>LocalClaw - Coming soon</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -83,7 +83,7 @@ const page = `<!doctype html>
       <div>
         <div class="eyebrow"><span class="pulse"></span> Coming soon · local first</div>
         <h1>Coming soon.<br><em>Your AI.</em><br>Your machine.</h1>
-        <p class="lede">LocalClaw is a secure, self-hosted OpenClaw workstation for people who want their agent, secrets, and working context to stay close, inspectable, and under their control. Vault is optional when you already use a local vault, and password-manager-backed flows support Bitwarden, 1Password, and LastPass.</p>
+        <p class="lede">LocalClaw is a secure, self-hosted OpenClaw workstation for people who want their agent, secrets, and working context to stay close, inspectable, and under their control. Vault is optional when you already use a local vault, and password-manager-backed flows support Bitwarden, 1Password, and LastPass. The first OpenClaw message should match the secret mode you chose.</p>
         <div class="actions">
           <a class="button" href="https://github.com/cjwelle/localclaw">Read the source <span aria-hidden="true">↗</span></a>
           <a class="link" href="https://github.com/cjwelle/localclaw"><span>Watch on GitHub</span></a>
@@ -92,6 +92,7 @@ const page = `<!doctype html>
           <span class="chip">Loopback-first</span>
           <span class="chip">Vault optional</span>
           <span class="chip">Bitwarden / 1Password / LastPass</span>
+          <span class="chip">Starter statements in the docs</span>
         </div>
         <div class="stack-strip" aria-label="Built on services">
           <span class="label">Built on</span>
@@ -117,7 +118,7 @@ const page = `<!doctype html>
           <div class="line good"><span>✓</span> Vault optional when you already use a local vault</div>
           <div class="line good"><span>✓</span> Secrets stay on this machine</div>
           <div class="line good"><span>✓</span> Gateway bound to loopback</div>
-          <div class="line muted" style="margin-top:12px">More to come: the install flow, the safety model, and the day-to-day operator experience. Supported password managers: Bitwarden, 1Password, and LastPass.</div>
+          <div class="line muted" style="margin-top:12px">More to come: the install flow, the safety model, and the day-to-day operator experience. Supported password managers: Bitwarden, 1Password, and LastPass. The docs include starter statements for each secret mode.</div>
           <div class="footer-note">Private by design · self-hosted by choice · built to be inspected · three secret modes</div>
         </div>
       </div>

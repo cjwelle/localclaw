@@ -73,6 +73,8 @@ docs: [`openclaw setup`](https://docs.openclaw.ai/cli/setup) or
 [`openclaw setup --baseline`](https://docs.openclaw.ai/cli/setup) if you just
 need config/workspace scaffolding. Then continue with
 [`CONFIGURATION.md`](CONFIGURATION.md) and [`OPERATIONS.md`](OPERATIONS.md).
+For the first OpenClaw message, use the mode-specific starter statements in
+[`OPERATIONS.md`](OPERATIONS.md#openclaw-starter-statements).
 
 If you prefer to install manually, follow the platform-specific steps below.
 `QUICK-START-INSTALLATION.md` now stays focused on the prerequisite matrix and installer
