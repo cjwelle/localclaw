@@ -12,7 +12,7 @@
 > Prefer the upstream docs for OpenClaw itself; always review any downloaded
 > installer before running it (never curl-pipe into a shell).
 
-## 1. Prerequisites
+## Prerequisites
 
 | Tool | Purpose | Required? |
 | --- | --- | --- |
