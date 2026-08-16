@@ -2,11 +2,9 @@
 
 Canonical repositories:
 
-- GitLab: <https://git.3rd.zone/zivo/localclaw>
-- GitHub mirror: <https://github.com/cjwelle/localclaw>
+- GitHub: <https://github.com/cjwelle/localclaw>
 
-The working flow is local changes -> GitLab -> manual GitHub mirror when a
-version is ready.
+The working flow is local changes -> GitHub when a version is ready.
 
 The `website/` directory contains the landing page deployed to
 <https://localclaw.bot>.

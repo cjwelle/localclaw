@@ -42,7 +42,7 @@ assert_ne "at least some links were checked" "${checked}" "0"
 assert_eq "no broken internal Markdown links" "${missing}" "0"
 
 # The core docs the README advertises must exist.
-for d in INSTALL CONFIGURATION SECURITY BACKUP-RESTORE OPERATIONS ARCHITECTURE \
+for d in QUICK-START-INSTALLATION MANUAL-STEP-INSTALLATION CONFIGURATION SECURITY BACKUP-RESTORE OPERATIONS ARCHITECTURE \
          CONTRIBUTING MAINTAINER-DECISIONS CI-CD VERSIONING; do
   assert_file "docs/${d}.md exists" "${REPO_DIR}/docs/${d}.md"
 done
