@@ -2,7 +2,11 @@
 
 Canonical repositories:
 
-- GitHub: <https://github.com/cjwelle/localclaw>
+- GitLab: <https://git.3rd.zone/zivo/localclaw>
+- GitHub mirror: <https://github.com/cjwelle/localclaw>
+
+The working flow is local changes -> GitLab -> manual GitHub mirror when a
+version is ready.
 
 The `website/` directory contains the landing page deployed to
 <https://localclaw.bot>.
@@ -55,7 +59,7 @@ read-only doctor, and executes the regression and disposable E2E tests. Use
 `./localclaw setup --apply-update` only after reviewing the update check.
 
 Environment overrides use the `LOCALCLAW_` prefix. Use the LocalClaw names
-documented in [`docs/QUICKSTARTINSTALLATION.md`](docs/QUICKSTARTINSTALLATION.md).
+documented in [`docs/QUICK-START-INSTALLATION.md`](docs/QUICK-START-INSTALLATION.md).
 
 ## Secret backend choices
 
@@ -162,7 +166,7 @@ installs any missing supported tools/services through Homebrew or apt. It asks
 for an explicit `INSTALL` confirmation before making changes and may require
 administrator permissions:
 
-- `vault` — HashiCorp Vault CLI/server
+- `vault` — HashiCorp Vault CLI/server (optional to preinstall; required for Vault-backed sessions)
 - `sqlite3` — work-memory database
 - `node`/`npm` — runtime used to install OpenClaw
 - `jq`, `git`, `curl`, `tmux` — supporting CLI tools
@@ -197,17 +201,30 @@ If you are testing on a different OS or package set, update the maintainer
 decision checklist and the versioning docs together so the support story stays
 consistent.
 
-## Quick start
+## Quick Start
 
-> Read [`docs/QUICKSTARTINSTALLATION.md`](docs/QUICKSTARTINSTALLATION.md) first. Restore/disaster-recovery
-> stays manual by design (see [`docs/BACKUP-RESTORE.md`](docs/BACKUP-RESTORE.md)).
+> Read [`docs/QUICK-START-INSTALLATION.md`](docs/QUICK-START-INSTALLATION.md) first for the guided path.
+> Restore/disaster-recovery stays manual by design (see
+> [`docs/BACKUP-RESTORE.md`](docs/BACKUP-RESTORE.md)).
 
-For a complete, plain-language walkthrough—including the commands an automated
-installer should run and the actions it must never automate—start with
-[`docs/MANUAL-STEP-INSTALLATION.md`](docs/MANUAL-STEP-INSTALLATION.md).
+Use [`docs/MANUAL-STEP-INSTALLATION.md`](docs/MANUAL-STEP-INSTALLATION.md) when
+you need the exact commands, safety rationale, or automation boundaries.
+
+Use the quick-start guide when:
+
+* You are setting up a normal new machine and want the shortest safe path.
+* You want `./localclaw` to guide installation, bootstrap, checks, and the
+  first session.
+* You do not need to inspect every command before proceeding.
+
+Use the manual-step guide when:
+
+* You are troubleshooting a broken install or validating a partial setup.
+* You want to run and verify each command yourself.
+* You are writing automation or need the lower-level safety notes.
 
 1. **Install prerequisites** for your OS: `scripts/install` (plan only) then
-   `scripts/install --apply` — or follow [`docs/QUICKSTARTINSTALLATION.md`](docs/QUICKSTARTINSTALLATION.md).
+   `scripts/install --apply` — or follow [`docs/QUICK-START-INSTALLATION.md`](docs/QUICK-START-INSTALLATION.md).
 2. **Preflight:** `make doctor` — confirm tools, permissions, and disk
    encryption look right.
 3. **Configure:** `scripts/bootstrap` renders config, creates owner-only state,
@@ -287,7 +304,7 @@ Day-to-day commands and troubleshooting live in
 │   ├── AGENTS.md SOUL.md USER.md IDENTITY.md TOOLS.md HEARTBEAT.md
 │   └── memory/                   Empty by design (.gitkeep).
 └── docs/
-    ├── QUICKSTARTINSTALLATION.md CONFIGURATION.md SECURITY.md BACKUP-RESTORE.md
+    ├── QUICK-START-INSTALLATION.md CONFIGURATION.md SECURITY.md BACKUP-RESTORE.md
     ├── OPERATIONS.md ARCHITECTURE.md CONTRIBUTING.md
     ├── CI-CD.md VERSIONING.md     Pipeline, local CI, SemVer, and release flow.
     └── MAINTAINER-DECISIONS.md   Checklist to complete before publishing.

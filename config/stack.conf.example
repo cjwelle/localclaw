@@ -38,7 +38,7 @@ SECRET_BACKEND=vault
 # These are non-secret settings only. For vault mode, the provider is optional
 # and may hold recovery/backup material. For password-manager mode, it is
 # required and supplies the values listed in secrets.map. References never
-# contain the secret itself. See docs/QUICKSTARTINSTALLATION.md for the mapping format.
+# contain the secret itself. See docs/QUICK-START-INSTALLATION.md for the mapping format.
 CREDENTIAL_PROVIDER=none
 BACKUP_IDENTITY_REF=
 

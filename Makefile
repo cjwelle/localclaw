@@ -21,7 +21,7 @@ help: ## Show this help.
 	@echo
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo
-	@echo "Read docs/QUICKSTARTINSTALLATION.md before your first run."
+	@echo "Read docs/QUICK-START-INSTALLATION.md before your first run."
 
 .PHONY: version
 version: ## Print the project version.

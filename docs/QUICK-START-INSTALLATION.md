@@ -1,9 +1,10 @@
-# Quick Start Installation
+# Quick-Start Installation
 
-> **Start here if you want the full guided path:**
-> [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md) walks from a fresh clone through Vault,
-> the first OpenClaw session, backups, and tests. Use it for the platform-
-> specific install commands and OpenClaw installation details.
+> **Start here if you want the guided path:**
+> this document covers the high-level install flow, installer behavior, and
+> the supported prerequisites. For the low-level, command-by-command install
+> sequence, recovery notes, and automation guardrails, use
+> [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md).
 
 > **Official OpenClaw resources** (this repo is an independent hardening layer,
 > not a fork): project <https://openclaw.ai/> · install docs
@@ -15,7 +16,7 @@
 
 | Tool | Purpose | Required? |
 | --- | --- | --- |
-| `vault` | Local secrets engine (server + CLI) | Yes |
+| `vault` | Local secrets engine (server + CLI) | Optional (required for Vault-backed sessions; the guided installer can install it) |
 | `sqlite3` | Work-memory database | Yes |
 | `node`, `npm` | Runtime to install/run OpenClaw | Yes (for OpenClaw) |
 | `jq` | JSON parsing in scripts | Yes |
@@ -195,7 +196,7 @@ when selected. On macOS, the selected provider CLI is
 installed with Homebrew. Provider account sign-in and MFA remain a separate,
 interactive step; the installer never asks for or stores those credentials.
 
-## Quick Start: complete first installation
+## Quick-Start: complete first installation
 
 This is the canonical path from a clean OS to the first real LocalClaw
 session. `./localclaw setup` handles software installation, local config
@@ -205,7 +206,8 @@ manually.
 
 The distinction between the guides is simple:
 
-- This Quick Start is the recommended end-to-end sequence using `./localclaw`.
+- This Quick-Start guide is the recommended end-to-end sequence using
+  `./localclaw`.
 - [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md) explains the
   same lifecycle at a lower level, with individual commands, safety rationale,
   recovery guidance, and automation notes. Use it when troubleshooting or when

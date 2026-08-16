@@ -65,7 +65,7 @@ if have shasum || have sha256sum; then pass "found: sha256 tool"
 else fault "missing: shasum/sha256sum"; fi
 # OpenClaw is not distributed via package managers; treat absence as a warning.
 if have "${OPENCLAW_BIN}"; then pass "found: ${OPENCLAW_BIN} ($(command -v "${OPENCLAW_BIN}"))"
-else note "missing: ${OPENCLAW_BIN} (install OpenClaw separately; see docs/QUICKSTARTINSTALLATION.md)"; fi
+else note "missing: ${OPENCLAW_BIN} (install OpenClaw separately; see docs/QUICK-START-INSTALLATION.md)"; fi
 # Port probing tool (optional but recommended).
 if have lsof || have ss || have netstat; then pass "found: port-probe tool (lsof/ss/netstat)"
 else note "no lsof/ss/netstat found; port conflict checks will be skipped at runtime"; fi
