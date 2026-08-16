@@ -117,7 +117,13 @@ secret mode you want:
 3. Password-manager only
 
 If you choose one of the password-manager modes, it then asks which provider
-to use: Bitwarden, 1Password, or LastPass.
+to use: Bitwarden, 1Password, or LastPass. Once LocalClaw is bootstrapped,
+move to the upstream OpenClaw onboarding entry point in the official docs:
+[`openclaw setup`](https://docs.openclaw.ai/cli/setup) for the interactive
+flow, or [`openclaw setup --baseline`](https://docs.openclaw.ai/cli/setup) if
+you only want to create the config/workspace folders first. Then continue with
+[`docs/CONFIGURATION.md`](CONFIGURATION.md) and
+[`docs/OPERATIONS.md`](OPERATIONS.md).
 
 ### Choose the session secret backend
 

@@ -57,7 +57,12 @@ read-only doctor, and executes the regression and disposable E2E tests. Use
 `./localclaw setup --apply-update` only after reviewing the update check.
 The first prompt asks which secret mode you want: Vault only, Vault + password
 manager, or password-manager-only. If you choose a password-manager mode, it
-then asks which provider to use.
+then asks which provider to use. After that, continue with the upstream
+OpenClaw setup flow from the official docs:
+[`https://docs.openclaw.ai/cli/setup`](https://docs.openclaw.ai/cli/setup)
+and [`https://docs.openclaw.ai/start/setup`](https://docs.openclaw.ai/start/setup).
+Use [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) and
+[`docs/OPERATIONS.md`](docs/OPERATIONS.md) for the next LocalClaw steps.
 
 Environment overrides use the `LOCALCLAW_` prefix. Use the LocalClaw names
 documented in [`docs/QUICK-START-INSTALLATION.md`](docs/QUICK-START-INSTALLATION.md).

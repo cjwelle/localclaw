@@ -68,6 +68,11 @@ services or create credentials.
 If you use `./localclaw setup`, it asks up front whether you want Vault only,
 Vault + password manager, or password-manager-only. It only asks which
 provider to use when you pick one of the password-manager modes.
+After that, hand off to the upstream OpenClaw setup entry point in the official
+docs: [`openclaw setup`](https://docs.openclaw.ai/cli/setup) or
+[`openclaw setup --baseline`](https://docs.openclaw.ai/cli/setup) if you just
+need config/workspace scaffolding. Then continue with
+[`CONFIGURATION.md`](CONFIGURATION.md) and [`OPERATIONS.md`](OPERATIONS.md).
 
 If you prefer to install manually, follow the platform-specific steps below.
 `QUICK-START-INSTALLATION.md` now stays focused on the prerequisite matrix and installer

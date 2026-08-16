@@ -198,6 +198,8 @@ setup() {
     printf '%s\n' 'End-to-end test skipped by request.' >&2
   fi
   printf '%s\n' 'LocalClaw setup completed.' >&2
+  printf '%s\n' 'Next: follow the upstream OpenClaw setup docs at https://docs.openclaw.ai/cli/setup or https://docs.openclaw.ai/start/setup.' >&2
+  printf '%s\n' 'Then continue with docs/CONFIGURATION.md and docs/OPERATIONS.md.' >&2
 }
 case "${1:-}" in
   setup) shift; setup "$@" ;;
