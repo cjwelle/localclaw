@@ -109,6 +109,16 @@ administrator approval through Homebrew. It never pipes a download into a
 shell, does not start a background service or register a scheduler, and does
 not touch your credentials.
 
+`./localclaw setup` is the guided first-run path. It starts by asking which
+secret mode you want:
+
+1. Vault only
+2. Vault + password manager
+3. Password-manager only
+
+If you choose one of the password-manager modes, it then asks which provider
+to use: Bitwarden, 1Password, or LastPass.
+
 ### Choose the session secret backend
 
 LocalClaw supports three intentional configurations:
@@ -230,6 +240,9 @@ During setup, the installer may ask you to select a password-manager CLI and a
 backup destination, then requires you to type `INSTALL` before packages are
 installed. Setup does not ask for your password-manager master password,
 Bitwarden session, Vault root token, or unseal shares.
+
+If you run `./localclaw setup`, the first prompt is the secret mode selector
+and the provider question only appears when you choose a password-manager mode.
 
 At the end, review `./localclaw doctor`. Warnings about an unconfigured backup
 recipient are expected until Step 4. The E2E result is disposable and does not

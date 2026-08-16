@@ -55,6 +55,9 @@ For the guided one-command workflow, run `./localclaw setup`. It checks and
 installs prerequisites, checks for updates, bootstraps configuration, runs the
 read-only doctor, and executes the regression and disposable E2E tests. Use
 `./localclaw setup --apply-update` only after reviewing the update check.
+The first prompt asks which secret mode you want: Vault only, Vault + password
+manager, or password-manager-only. If you choose a password-manager mode, it
+then asks which provider to use.
 
 Environment overrides use the `LOCALCLAW_` prefix. Use the LocalClaw names
 documented in [`docs/QUICK-START-INSTALLATION.md`](docs/QUICK-START-INSTALLATION.md).

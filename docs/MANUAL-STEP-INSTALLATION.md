@@ -65,6 +65,10 @@ The installer is plan-by-default. `--apply` requires an explicit confirmation;
 it installs missing supported prerequisites and OpenClaw, but does not start
 services or create credentials.
 
+If you use `./localclaw setup`, it asks up front whether you want Vault only,
+Vault + password manager, or password-manager-only. It only asks which
+provider to use when you pick one of the password-manager modes.
+
 If you prefer to install manually, follow the platform-specific steps below.
 `QUICK-START-INSTALLATION.md` now stays focused on the prerequisite matrix and installer
 behavior; this file carries the actual install commands.

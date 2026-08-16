@@ -12,6 +12,7 @@ Commands: setup, install, bootstrap, doctor, update, credentials, backup verify,
 
 Guided setup:
   localclaw setup                 Install, update-check, bootstrap, doctor, test, E2E
+                                  Prompts for Vault / password-manager mode if omitted
   localclaw setup --secret-backend vault|password-manager
                                   Select the session secret backend
   localclaw setup --password-manager bitwarden|1password|lastpass
@@ -47,8 +48,61 @@ write_setup_config_key() {
   chmod 600 "${tmp}" && mv "${tmp}" "${file}"
 }
 
+prompt_setup_mode() {
+  while :; do
+    printf '\n== LocalClaw setup mode ==\n' >&2
+    printf '  1) Vault only\n' >&2
+    printf '  2) Vault + password manager\n' >&2
+    printf '  3) Password-manager only\n' >&2
+    printf 'Select 1, 2, or 3 [1]: ' >&2
+    IFS= read -r choice || choice=""
+    case "${choice}" in
+      ''|1|vault|vault-only)
+        secret_backend="vault"
+        password_manager="none"
+        setup_mode="vault-only"
+        return 0
+        ;;
+      2|'vault + password manager'|'vault+password-manager'|'vault-password-manager'|'vault-password-manager-only')
+        secret_backend="vault"
+        password_manager=""
+        setup_mode="vault+pm"
+        return 0
+        ;;
+      3|'password-manager'|'password-manager-only'|pm)
+        secret_backend="password-manager"
+        password_manager=""
+        setup_mode="password-manager-only"
+        return 0
+        ;;
+      *)
+        printf 'Please choose 1, 2, or 3.\n' >&2
+        ;;
+    esac
+  done
+}
+
+prompt_password_manager() {
+  while :; do
+    printf '\nWhich password manager should LocalClaw use?\n' >&2
+    printf '  1) Bitwarden\n' >&2
+    printf '  2) 1Password\n' >&2
+    printf '  3) LastPass\n' >&2
+    printf 'Select 1, 2, or 3 [1]: ' >&2
+    IFS= read -r choice || choice=""
+    case "${choice}" in
+      ''|1|bitwarden) password_manager="bitwarden"; return 0 ;;
+      2|1password) password_manager="1password"; return 0 ;;
+      3|lastpass) password_manager="lastpass"; return 0 ;;
+      *)
+        printf 'Please choose 1, 2, or 3.\n' >&2
+        ;;
+    esac
+  done
+}
+
 setup() {
-  local apply_update=0 skip_tests=0 skip_e2e=0 secret_backend="" password_manager=""
+  local apply_update=0 skip_tests=0 skip_e2e=0 secret_backend="" password_manager="" setup_mode=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --apply-update) apply_update=1 ;;
@@ -62,17 +116,54 @@ setup() {
     shift
   done
 
+  if [ -z "${secret_backend}" ]; then
+    if [ -n "${password_manager}" ] && [ "${password_manager}" != "none" ]; then
+      secret_backend="vault"
+      setup_mode="vault+pm"
+    elif [ -t 0 ]; then
+      prompt_setup_mode
+    else
+      secret_backend="vault"
+      password_manager="none"
+      setup_mode="vault-only"
+    fi
+  fi
+  case "${secret_backend}" in
+    vault|password-manager) : ;;
+    *) printf 'Unknown setup secret backend: %s\n' "${secret_backend}" >&2; return 2 ;;
+  esac
+  if [ "${secret_backend}" = "vault" ] && [ "${password_manager}" = "" ]; then
+    if [ "${setup_mode}" = "vault+pm" ]; then
+      if [ -t 0 ]; then
+        prompt_password_manager
+      else
+        printf '%s\n' 'Vault + password manager requires --password-manager bitwarden|1password|lastpass.' >&2
+        return 2
+      fi
+    else
+      password_manager="none"
+      setup_mode="vault-only"
+    fi
+  fi
+  if [ "${secret_backend}" = "password-manager" ] && [ "${password_manager}" = "" ]; then
+    if [ -t 0 ]; then
+      prompt_password_manager
+    else
+      printf '%s\n' 'Password-manager mode requires --password-manager bitwarden|1password|lastpass.' >&2
+      return 2
+    fi
+  fi
+  if [ "${secret_backend}" = "vault" ] && [ "${password_manager}" = "" ]; then
+    password_manager="none"
+  fi
+  case "${password_manager}" in
+    ""|none|bitwarden|1password|lastpass) : ;;
+    *) printf 'Unknown password manager: %s\n' "${password_manager}" >&2; return 2 ;;
+  esac
+
   printf '%s\n' '== LocalClaw guided setup ==' >&2
   printf '%s\n' '[1/6] Checking and installing prerequisites (permission required)...' >&2
-  if [ -n "${secret_backend}" ] && [ -n "${password_manager}" ]; then
-    "${ROOT}/scripts/install" --apply --secret-backend "${secret_backend}" --password-manager "${password_manager}" || return $?
-  elif [ -n "${secret_backend}" ]; then
-    "${ROOT}/scripts/install" --apply --secret-backend "${secret_backend}" || return $?
-  elif [ -n "${password_manager}" ]; then
-    "${ROOT}/scripts/install" --apply --password-manager "${password_manager}" || return $?
-  else
-    "${ROOT}/scripts/install" --apply || return $?
-  fi
+  "${ROOT}/scripts/install" --apply --secret-backend "${secret_backend}" --password-manager "${password_manager}" || return $?
 
   printf '%s\n' '[2/6] Checking for a canonical release update...' >&2
   "${ROOT}/scripts/update" --check || return $?
