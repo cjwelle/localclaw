@@ -432,10 +432,23 @@ vault_is_initialized || fail "Vault is not initialized. Run scripts/vault-bootst
 # --- 2) Unseal (password manager or hidden prompts) ------------------------
 case "$(vault_is_sealed; echo $?)" in
   0)
-    if [ "${CREDENTIAL_PROVIDER}" != none ] && [ -n "${VAULT_UNSEAL_REF}" ]; then
+    if [ "${CREDENTIAL_PROVIDER}" != none ]; then
+      unseal_ref="${VAULT_UNSEAL_REF:-}"
+      if [ -z "${unseal_ref}" ] && [ -n "${LOCALCLAW_PROJECT:-}" ]; then
+        project_ref_var="$(project_unseal_ref_var)" || fail "Unable to derive project-scoped unseal reference variable."
+        unseal_ref="${!project_ref_var:-}"
+      fi
+      if [ -z "${unseal_ref}" ]; then
+        if [ -n "${LOCALCLAW_PROJECT:-}" ]; then
+          unseal_ref="$(read_secret "Vault unseal note reference for ${LOCALCLAW_PROJECT} in ${CREDENTIAL_PROVIDER} (hidden)")"
+        else
+          unseal_ref="$(read_secret "Vault unseal note reference in ${CREDENTIAL_PROVIDER} (hidden)")"
+        fi
+      fi
+      [ -n "${unseal_ref}" ] || fail "No Vault unseal note reference provided."
       info "Vault is sealed. Reading unseal shares from ${CREDENTIAL_PROVIDER} (hidden authentication)."
       shares_file="${session_tmp}/vault-unseal-shares"
-      read_unseal_shares_from_password_manager "${CREDENTIAL_PROVIDER}" "${VAULT_UNSEAL_REF}" "${shares_file}" \
+      read_unseal_shares_from_password_manager "${CREDENTIAL_PROVIDER}" "${unseal_ref}" "${shares_file}" \
         || fail "Unable to retrieve unseal shares from ${CREDENTIAL_PROVIDER}."
       while IFS= read -r share || [ -n "${share}" ]; do
         case "$(vault_is_sealed; echo $?)" in
@@ -456,9 +469,6 @@ case "$(vault_is_sealed; echo $?)" in
         *) fail "Unable to confirm Vault seal status after password-manager unseal." ;;
       esac
     else
-      if [ "${CREDENTIAL_PROVIDER}" != none ] && [ -z "${VAULT_UNSEAL_REF}" ]; then
-        warn "VAULT_UNSEAL_REF is not configured; falling back to manual unseal-share prompts."
-      fi
       info "Vault is sealed. Enter distinct unseal shares (hidden) until it unseals."
       while :; do
         case "$(vault_is_sealed; echo $?)" in

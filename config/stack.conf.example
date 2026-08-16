@@ -35,10 +35,17 @@ AGE_KEYGEN_BIN=age-keygen
 CREDENTIAL_PROVIDER=none
 BACKUP_IDENTITY_REF=
 
+# Optional stack/project name used for project-scoped unseal references.
+# If set to ACME, work-session will look for ACME_VAULT_UNSEAL_REF in this
+# config before prompting for a note reference.
+LOCALCLAW_PROJECT=
+
 # Optional Vault-unseal note reference. If set alongside CREDENTIAL_PROVIDER,
 # scripts/work-session will unlock that provider, read the note, and feed the
-# recovered shares to `vault operator unseal`. Store one unseal share per line
-# in the referenced secure note.
+# recovered shares to `vault operator unseal`. If left blank, work-session
+# first looks for <PROJECT>_VAULT_UNSEAL_REF, then prompts for the note
+# reference at launch. Store one unseal share per line in the referenced
+# secure note.
 VAULT_UNSEAL_REF=
 
 # --- Vault initialization guidance (used by vault-bootstrap init) ----------

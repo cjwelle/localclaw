@@ -91,9 +91,10 @@ With bootstrap done, start a session with `make work-session` (or
 1. Refuses to start if a conflicting listener holds the Vault or gateway port,
    or if a `VAULT_TOKEN` is inherited from another Vault.
 2. Starts Vault as an owned child and either unlocks the configured password
-   manager to read Vault unseal shares from `VAULT_UNSEAL_REF`, or falls back
-   to hidden share prompts if no PM reference is configured. It then prompts
-   for your admin password (read on stdin, never argv).
+   manager to read Vault unseal shares from `VAULT_UNSEAL_REF`, then from
+   `<PROJECT>_VAULT_UNSEAL_REF` when `LOCALCLAW_PROJECT` is set, or prompts
+   for the note reference if neither field is set. It then prompts for your
+   admin password (read on stdin, never argv).
 3. Mints two dedicated short-lived tokens via the Vault roles: an
    `agent-session` token (agent policy) and a `backup-session` token
    (snapshot-only backup policy).

@@ -398,8 +398,11 @@ manager — keep the unseal shares.
 If you want `scripts/work-session` to read the unseal shares automatically,
 store them in a secure note in the password manager configured by
 `CREDENTIAL_PROVIDER`, then set `VAULT_UNSEAL_REF` in `stack.conf` to that note
-reference. Put one unseal share per line. If `VAULT_UNSEAL_REF` is unset, the
-launcher falls back to the original hidden share prompts.
+reference. For multiple LocalClaws, set `LOCALCLAW_PROJECT` and use a scoped
+key like `ACME_VAULT_UNSEAL_REF` for that stack. Put one unseal share per line.
+If `VAULT_UNSEAL_REF` and the project-scoped key are both unset, the launcher
+prompts for the note reference at startup instead of falling back to manual
+share entry.
 
 If you are using a password manager, store the recovery material as separate
 items so you do not paste the wrong value later:

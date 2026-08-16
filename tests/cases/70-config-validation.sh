@@ -80,9 +80,16 @@ assert_ok "backup role is orphaned from temporary admin login" \
 grep -q '^VAULT_PORT=18200'   "${CFG}/stack.conf.example" && t_pass "sample VAULT_PORT=18200" || t_fail "sample VAULT_PORT mismatch"
 grep -q '^OPENCLAW_PORT=18789' "${CFG}/stack.conf.example" && t_pass "sample OPENCLAW_PORT=18789" || t_fail "sample OPENCLAW_PORT mismatch"
 grep -q '^VAULT_KV_MOUNT=local' "${CFG}/stack.conf.example" && t_pass "sample VAULT_KV_MOUNT=local" || t_fail "sample mount mismatch"
+grep -q '^LOCALCLAW_PROJECT=' "${CFG}/stack.conf.example" && t_pass "sample LOCALCLAW_PROJECT present" || t_fail "sample LOCALCLAW_PROJECT missing"
 grep -q '^VAULT_UNSEAL_REF=' "${CFG}/stack.conf.example" && t_pass "sample VAULT_UNSEAL_REF present" || t_fail "sample VAULT_UNSEAL_REF missing"
 grep -q 'VAULT_PORT="18200"'   "${COMMON_SH}" && t_pass "library default VAULT_PORT=18200" || t_fail "library VAULT_PORT default mismatch"
 grep -q 'OPENCLAW_PORT="18789"' "${COMMON_SH}" && t_pass "library default OPENCLAW_PORT=18789" || t_fail "library OPENCLAW_PORT default mismatch"
+
+# --- project-scoped unseal refs are accepted by the restricted config loader -
+project_conf="${HOME}/project-scoped-stack.conf"
+printf 'LOCALCLAW_PROJECT=Acme Tools\nACME_TOOLS_VAULT_UNSEAL_REF=op://Vault/Acme/notes\n' > "${project_conf}"
+loaded="$(bash -c '. "$1"; load_stack_config "$2"; printf "%s|%s" "$LOCALCLAW_PROJECT" "$ACME_TOOLS_VAULT_UNSEAL_REF"' _ "${COMMON_SH}" "${project_conf}")"
+assert_eq "project-scoped unseal ref loads" "${loaded}" "Acme Tools|op://Vault/Acme/notes"
 
 # --- VERSION is present and semver-shaped ------------------------------------
 ver="$(cat "${REPO_DIR}/VERSION" 2>/dev/null | tr -d '[:space:]')"

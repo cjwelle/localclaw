@@ -79,8 +79,21 @@ esac
 if [ "${CREDENTIAL_PROVIDER}" != none ] && [ -z "${BACKUP_IDENTITY_REF}" ]; then
   fault "BACKUP_IDENTITY_REF is empty for configured password-manager provider"
 fi
-if [ "${CREDENTIAL_PROVIDER}" != none ] && [ -z "${VAULT_UNSEAL_REF}" ]; then
-  note "VAULT_UNSEAL_REF is empty; work-session will fall back to manual unseal-share prompts"
+if [ "${CREDENTIAL_PROVIDER}" != none ]; then
+  if [ -n "${LOCALCLAW_PROJECT}" ]; then
+    project_ref_var="$(project_unseal_ref_var 2>/dev/null || true)"
+    if [ -n "${project_ref_var}" ] && [ -n "${!project_ref_var:-}" ]; then
+      pass "Project-scoped unseal ref present: ${project_ref_var}"
+    elif [ -n "${VAULT_UNSEAL_REF}" ]; then
+      pass "Generic unseal ref present for ${LOCALCLAW_PROJECT}"
+    else
+      note "No unseal ref set; work-session will prompt for the note reference at launch"
+    fi
+  elif [ -n "${VAULT_UNSEAL_REF}" ]; then
+    pass "Unseal ref present"
+  else
+    note "VAULT_UNSEAL_REF is empty; work-session will prompt for the note reference at launch"
+  fi
 fi
 
 if [ -n "${BACKUP_DIR}" ]; then
