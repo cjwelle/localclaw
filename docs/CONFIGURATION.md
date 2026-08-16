@@ -4,7 +4,9 @@
 > This file is the reference for each non-secret setting and rendered file.
 
 All configuration is **non-secret** and lives outside the repository, under your
-XDG directories. Secrets never appear in any config file — they live in Vault.
+XDG directories. Secret values never appear in any config file. They live in
+Vault by default, or are retrieved just in time from the configured password
+manager when `SECRET_BACKEND=password-manager` is selected.
 
 ## Where things live
 
@@ -45,6 +47,9 @@ sourced as shell, and unknown keys are ignored with a warning. Keys:
 | `VAULT_KV_MOUNT` | `local` | KV v2 mount name. If you change it, update `policies/*.hcl`. |
 | `OPENCLAW_PROFILE` | `work` | OpenClaw profile the gateway uses. |
 | `OPENCLAW_PORT` | `18789` | Foreground gateway port (loopback). |
+| `SECRET_BACKEND` | `vault` | `vault` for local Vault runtime secrets, or `password-manager` for direct provider retrieval. |
+| `CREDENTIAL_PROVIDER` | `none` | `none`, `bitwarden`, `1password`, or `lastpass`. Required for password-manager backend. |
+| `BACKUP_IDENTITY_REF` | _(empty)_ | Provider reference for the optional Vault backup identity; not required in password-manager-only mode. |
 | `VAULT_BIN` / `OPENCLAW_BIN` / `AGE_BIN` / `AGE_KEYGEN_BIN` | names on `PATH` | Override with absolute paths if needed. |
 | `VAULT_KEY_SHARES` / `VAULT_KEY_THRESHOLD` | `5` / `3` | Guidance only, used when *you* initialize Vault. |
 | `BACKUP_DIR` | _(empty)_ | Absolute path to a folder you control. Empty disables backups. |
@@ -77,8 +82,11 @@ validate` using those same environment variables.
 
 ### `secrets.map` (from `config/secrets.map.sample`)
 
-A whitespace-separated map of **environment variable → Vault KV path → field**.
-It contains only names and paths — never secret values. Example:
+A whitespace-separated map of **environment variable → reference → field**.
+It contains only names and references — never secret values. In the default
+Vault mode, the reference is a KV path. In password-manager mode, it is a
+provider-native item reference and the field is `password` or `notes` (or
+`value` for a complete 1Password `op://` reference). Example Vault map:
 
 ```text
 ANTHROPIC_API_KEY   ai/anthropic   api_key
@@ -87,8 +95,10 @@ OPENAI_API_KEY      ai/openai      api_key
 
 At session start, the launcher reads each mapped field from Vault and injects it
 into the **foreground gateway's environment only** — never to disk, logs, or
-command-line arguments. Remove lines you do not use; if your OpenClaw build reads
-keys from its own config, you may leave the file empty.
+command-line arguments. In password-manager-only mode the same rule applies,
+but the configured provider CLI supplies the value and Vault is not started.
+Remove lines you do not use; if your OpenClaw build reads keys from its own
+config, you may leave the file empty.
 
 ## Rendering the templates
 

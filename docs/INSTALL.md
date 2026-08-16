@@ -74,6 +74,39 @@ administrator approval through Homebrew. It never pipes a download into a
 shell, does not start a background service or register a scheduler, and does
 not touch your credentials.
 
+### Choose the session secret backend
+
+LocalClaw supports three intentional configurations:
+
+1. **Vault-only:** `SECRET_BACKEND=vault` and `CREDENTIAL_PROVIDER=none`.
+   Vault is the local runtime secret store.
+2. **Vault + password manager:** `SECRET_BACKEND=vault` with a configured
+   provider. Vault still supplies runtime secrets; the provider can supply
+   recovery shares or the encrypted-backup identity.
+3. **Password-manager-only:** `SECRET_BACKEND=password-manager` with
+   `CREDENTIAL_PROVIDER=bitwarden`, `1password`, or `lastpass`. Vault is not
+   started. Values in `secrets.map` are retrieved just in time through the
+   provider CLI and injected only into the foreground gateway.
+
+The password-manager-only mode is an explicit tradeoff, not an automatic
+fallback. It depends on the provider CLI and its authentication/session model.
+Bitwarden is the only provider tested by this project; 1Password and LastPass
+may work but remain experimental until validated.
+
+Example setup commands:
+
+```sh
+./localclaw setup --secret-backend vault
+./localclaw setup --secret-backend vault --password-manager bitwarden
+./localclaw setup --secret-backend password-manager --password-manager bitwarden
+```
+
+After bootstrap, set the matching keys in `stack.conf`. In Vault mode,
+`secrets.map` uses `ENV KV_PATH FIELD`; in password-manager mode it uses
+`ENV PROVIDER_REFERENCE FIELD`, where the field is `password` or `notes` for
+Bitwarden/LastPass. Use a complete `op://...` reference and `value` for
+1Password.
+
 ```sh
 ./localclaw install             # plan only (default): prints what it would do
 ./localclaw install --apply     # install missing tools after confirmation

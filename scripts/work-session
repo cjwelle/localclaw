@@ -8,8 +8,9 @@
 #
 # What it does, in order:
 #   1. Refuse to start if a conflicting listener already holds a stack port.
-#   2. Start the isolated local Vault as an owned child (loopback only).
-#   3. Prompt (hidden) for unseal shares until Vault is unsealed.
+#   2. In Vault mode, start the isolated local Vault as an owned child.
+#      In password-manager mode, retrieve mapped values just in time instead.
+#   3. In Vault mode, prompt (hidden) for unseal shares until Vault is unsealed.
 #   4. Log in as the admin userpass user with a hidden password read on stdin.
 #   5. Mint two dedicated, least-privilege, short-lived tokens via the roles
 #      created by scripts/vault-bootstrap: an 'agent-session' token (agent
@@ -18,7 +19,7 @@
 #      token, then drop the admin token from memory.
 #   7. Inject ONLY the agent token and the provider keys into the foreground
 #      gateway's environment, start it on loopback, and open the TUI.
-#   8. On a CLEAN exit: stop the gateway, take an encrypted backup with the
+#   8. On a CLEAN Vault-mode exit: stop the gateway, take an encrypted backup with the
 #      backup token (while Vault is still up), revoke both session tokens, and
 #      finally stop Vault. Temporary logs are removed.
 #
@@ -42,8 +43,17 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "${SCRIPT_DIR}/lib/common.sh"
 load_stack_config
 
+case "${SECRET_BACKEND}" in
+  vault|password-manager) : ;;
+  *) fail "Unsupported SECRET_BACKEND: ${SECRET_BACKEND} (use vault or password-manager)." ;;
+esac
+if [ "${SECRET_BACKEND}" = "password-manager" ] && [ "${CREDENTIAL_PROVIDER}" = "none" ]; then
+  fail "SECRET_BACKEND=password-manager requires CREDENTIAL_PROVIDER=bitwarden, 1password, or lastpass."
+fi
+
 VAULT_START="${SCRIPT_DIR}/vault-start"
 BACKUP_SCRIPT="${SCRIPT_DIR}/backup"
+PASSWORD_MANAGER_SCRIPT="${SCRIPT_DIR}/credentials"
 
 FORCE_BACKUP=0
 DRY_RUN=0
@@ -53,7 +63,8 @@ usage() {
 Usage: scripts/work-session [--force-backup|--dry-run]
 
   (no flags)     Start a real foreground session: own Vault + the loopback
-                 OpenClaw gateway/TUI, then run guarded cleanup on exit.
+                 OpenClaw gateway/TUI, or use the configured password manager
+                 directly when SECRET_BACKEND=password-manager.
   --force-backup Same as above, but force an extra same-day encrypted backup
                  during exit cleanup (after significant Vault/policy changes).
   --dry-run      Validate binaries, ports, config, and the backup plan. Starts
@@ -162,7 +173,11 @@ cleanup() {
   # Scrub secret-bearing variables from the shell.
   unset VAULT_TOKEN LOCAL_VAULT_TOKEN admin_token agent_token backup_token
   admin_token=""; agent_token=""; backup_token=""
-  ok "Vault and the foreground OpenClaw gateway are stopped."
+  if [ "${SECRET_BACKEND}" = "vault" ]; then
+    ok "Vault and the foreground OpenClaw gateway are stopped."
+  else
+    ok "Password-manager session and foreground OpenClaw gateway are stopped."
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -232,9 +247,14 @@ validate_secret_mapping() {
     PATH|HOME|SHELL|ENV|BASH_ENV|VAULT_*|LOCAL_VAULT_TOKEN|LOCALCLAW_*|LD_*|DYLD_*|NODE_OPTIONS)
       fail "Reserved environment variable in secrets.map: ${env_name}" ;;
   esac
-  printf '%s' "${kv_path}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_./-]*$' \
-    || fail "Invalid Vault KV path in secrets.map: ${kv_path}"
-  case "/${kv_path}/" in */../*|*/./*) fail "Unsafe Vault KV path in secrets.map: ${kv_path}" ;; esac
+  if [ "${SECRET_BACKEND}" = "vault" ]; then
+    printf '%s' "${kv_path}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_./-]*$' \
+      || fail "Invalid Vault KV path in secrets.map: ${kv_path}"
+    case "/${kv_path}/" in */../*|*/./*) fail "Unsafe Vault KV path in secrets.map: ${kv_path}" ;; esac
+  else
+    printf '%s' "${kv_path}" | grep -Eq '^[^[:space:]]+$' \
+      || fail "Invalid password-manager reference in secrets.map: ${kv_path}"
+  fi
   printf '%s' "${kv_field}" | grep -Eq '^[A-Za-z0-9_.-]+$' \
     || fail "Invalid Vault field name in secrets.map: ${kv_field}"
 }
@@ -262,7 +282,7 @@ if [ "${DRY_RUN}" -eq 1 ]; then
   [ -r "${LOCALCLAW_OPENCLAW_JSON}" ] || warn "openclaw.json not rendered (run scripts/bootstrap)"
 
   # Ports must be free.
-  if port_is_listening "${VAULT_PORT}"; then fail "Port ${VAULT_PORT} (Vault) is already in use."; fi
+  if [ "${SECRET_BACKEND}" = "vault" ] && port_is_listening "${VAULT_PORT}"; then fail "Port ${VAULT_PORT} (Vault) is already in use."; fi
   if port_is_listening "${OPENCLAW_PORT}"; then fail "Port ${OPENCLAW_PORT} (gateway) is already in use."; fi
   ok "Ports ${VAULT_PORT} and ${OPENCLAW_PORT} are free."
 
@@ -279,16 +299,19 @@ EOF
       validate_secret_mapping "${env_name}" "${kv_path}" "${kv_field}"
       n=$((n + 1))
     done < "${LOCALCLAW_SECRETS_MAP}"
-    ok "secrets.map parses (${n} mapping(s))."
+      ok "secrets.map parses for ${SECRET_BACKEND} backend (${n} mapping(s))."
   else
     warn "secrets.map not present; the gateway would get the agent token but no provider keys."
   fi
 
-  # Backup plan (validates BACKUP_DIR + recipient without touching Vault), if configured.
-  if [ -n "${BACKUP_DIR}" ]; then
+  # Backup plan only applies to Vault mode; password-manager-only sessions do
+  # not create or snapshot a local Vault.
+  if [ "${SECRET_BACKEND}" = "vault" ] && [ -n "${BACKUP_DIR}" ]; then
     if "${BACKUP_SCRIPT}" --dry-run; then ok "backup dry-run passed."; else fail "backup dry-run failed."; fi
-  else
+  elif [ "${SECRET_BACKEND}" = "vault" ]; then
     warn "BACKUP_DIR not set; exit-time backups are disabled."
+  else
+    info "Password-manager-only mode: Vault backup plan is not applicable."
   fi
 
   ok "Dry run complete. Nothing was started, stopped, minted, or read."
@@ -298,6 +321,84 @@ fi
 # ===========================================================================
 # Real session.
 # ===========================================================================
+
+run_password_manager_session() {
+  have jq || fail "jq not found; password-manager session retrieval requires jq. Run scripts/install."
+  have "${OPENCLAW_BIN}" || fail "openclaw not found: ${OPENCLAW_BIN}. Run scripts/install."
+  [ -x "${PASSWORD_MANAGER_SCRIPT}" ] || fail "Missing/inaccessible: ${PASSWORD_MANAGER_SCRIPT}"
+  port_is_listening "${OPENCLAW_PORT}" && fail "Port ${OPENCLAW_PORT} is already in use. Stop the existing OpenClaw gateway first."
+
+  umask 077
+  ensure_private_dir "${LOCALCLAW_STATE_DIR}"
+  ensure_private_dir "${LOCALCLAW_LOG_DIR}"
+  session_tmp="$(make_secure_tmpdir openclaw-work-session)"
+  trap cleanup EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  sleep_guard "$$" &
+  guard_pid=$!
+
+  gw_env_pairs=""
+  if [ -r "${LOCALCLAW_SECRETS_MAP}" ]; then
+    while IFS= read -r line || [ -n "${line}" ]; do
+      case "${line}" in ''|'#'*) continue ;; esac
+      IFS=' ' read -r env_name secret_ref secret_field extra <<EOF
+${line}
+EOF
+      [ -n "${env_name}" ] && [ -n "${secret_ref}" ] && [ -n "${secret_field}" ] && [ -z "${extra}" ] \
+        || fail "Malformed secrets.map line (need: ENV reference field): ${line}"
+      validate_secret_mapping "${env_name}" "${secret_ref}" "${secret_field}"
+      val="$("${PASSWORD_MANAGER_SCRIPT}" read-secret \
+        --provider "${CREDENTIAL_PROVIDER}" --ref "${secret_ref}" --field "${secret_field}")" \
+        || fail "Unable to read ${CREDENTIAL_PROVIDER} reference '${secret_ref}'."
+      case "${val}" in
+        '' ) fail "Password-manager secret '${secret_ref}' is empty." ;;
+        *$'\n'*|*$'\r'* ) fail "Password-manager secret '${secret_ref}' contains a newline (unsupported)." ;;
+      esac
+      gw_env_pairs="${gw_env_pairs}${env_name}=${val}
+"
+      unset val
+    done < "${LOCALCLAW_SECRETS_MAP}"
+  else
+    warn "secrets.map not present; the gateway will receive no provider keys."
+  fi
+
+  info "Starting the foreground OpenClaw gateway with ${CREDENTIAL_PROVIDER} secrets (no Vault)..."
+  (
+    export OPENCLAW_CONFIG_PATH="${LOCALCLAW_OPENCLAW_JSON}"
+    export OPENCLAW_STATE_DIR="${LOCALCLAW_OPENCLAW_STATE_DIR}"
+    while IFS= read -r _pair; do
+      [ -n "${_pair}" ] || continue
+      _n="${_pair%%=*}"; _v="${_pair#*=}"
+      export "${_n}=${_v}"
+    done <<EOF
+${gw_env_pairs}
+EOF
+    exec "${OPENCLAW_BIN}" --profile "${OPENCLAW_PROFILE}" gateway run \
+      --bind loopback --port "${OPENCLAW_PORT}"
+  ) >"${session_tmp}/gateway.log" 2>&1 &
+  gateway_pid=$!
+  unset gw_env_pairs
+  wait_for_port "${OPENCLAW_PORT}" "${gateway_pid}" \
+    || fail "OpenClaw gateway failed to start (see session log; removed on exit)."
+  ok "Gateway is up on 127.0.0.1:${OPENCLAW_PORT}."
+
+  session_ready=1
+  info "Opening the OpenClaw terminal UI. Exit it (/exit, Ctrl-D, or double Ctrl-C) to end the session."
+  OPENCLAW_CONFIG_PATH="${LOCALCLAW_OPENCLAW_JSON}" \
+  OPENCLAW_STATE_DIR="${LOCALCLAW_OPENCLAW_STATE_DIR}" \
+    "${OPENCLAW_BIN}" --profile "${OPENCLAW_PROFILE}" tui </dev/tty &
+  tui_pid=$!
+  wait "${tui_pid}"
+  tui_status=$?
+  tui_pid=""
+  exit "${tui_status}"
+}
+
+if [ "${SECRET_BACKEND}" = "password-manager" ]; then
+  run_password_manager_session
+fi
 
 # Refuse an inherited VAULT_TOKEN up front (belt-and-braces; vault_local also
 # refuses it) and clear any inherited local token.

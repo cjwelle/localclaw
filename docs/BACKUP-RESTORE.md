@@ -1,5 +1,10 @@
 # Backup & Restore
 
+These Vault backup and restore procedures apply when `SECRET_BACKEND=vault`.
+Password-manager-only sessions do not start a local Vault and therefore do not
+create Vault snapshots; use the provider's own recovery and backup controls for
+those stored items.
+
 ## Password-manager key retrieval (Bitwarden, 1Password, or LastPass)
 
 > **Testing status:** Bitwarden is the only password-manager integration tested

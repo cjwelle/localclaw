@@ -35,6 +35,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "${SCRIPT_DIR}/lib/common.sh"
 load_stack_config
 
+[ "${SECRET_BACKEND}" = "vault" ] || fail "Encrypted Vault backups require SECRET_BACKEND=vault; password-manager-only sessions do not run a local Vault."
+
 FORCE=0
 DRY_RUN=0
 

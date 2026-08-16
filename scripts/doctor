@@ -41,10 +41,22 @@ else
 fi
 
 head2 "Required tools"
-for bin in "${VAULT_BIN}" "${AGE_BIN}" "${AGE_KEYGEN_BIN}"; do
-  if have "${bin}"; then pass "found: ${bin} ($(command -v "${bin}"))"
-  else fault "missing: ${bin} (run scripts/install)"; fi
-done
+case "${SECRET_BACKEND}" in
+  vault)
+    for bin in "${VAULT_BIN}"; do
+      if have "${bin}"; then pass "found: ${bin} ($(command -v "${bin}"))"
+      else fault "missing: ${bin} (run scripts/install)"; fi
+    done
+    for bin in "${AGE_BIN}" "${AGE_KEYGEN_BIN}"; do
+      if have "${bin}"; then pass "found: ${bin} ($(command -v "${bin}"))"
+      else note "missing: ${bin} (required only for encrypted Vault backups)"; fi
+    done
+    ;;
+  password-manager)
+    pass "secret backend: password-manager (Vault is not required for sessions)"
+    ;;
+  *) fault "unsupported SECRET_BACKEND: ${SECRET_BACKEND}" ;;
+esac
 for bin in tar sqlite3; do
   if have "${bin}"; then pass "found: ${bin}"
   else fault "missing: ${bin}"; fi
@@ -59,24 +71,32 @@ if have lsof || have ss || have netstat; then pass "found: port-probe tool (lsof
 else note "no lsof/ss/netstat found; port conflict checks will be skipped at runtime"; fi
 
 head2 "Configuration"
+printf 'secret backend: %s\n' "${SECRET_BACKEND}"
 if [ -r "${LOCALCLAW_STACK_CONF}" ]; then pass "stack.conf present"
 else note "stack.conf missing (run scripts/bootstrap): ${LOCALCLAW_STACK_CONF}"; fi
-if [ -r "${LOCALCLAW_VAULT_HCL}" ]; then pass "rendered vault.hcl present"
+if [ "${SECRET_BACKEND}" = "password-manager" ]; then
+  note "vault.hcl is not required for password-manager-only sessions"
+elif [ -r "${LOCALCLAW_VAULT_HCL}" ]; then pass "rendered vault.hcl present"
 else note "vault.hcl not rendered yet (run scripts/bootstrap)"; fi
 if [ -r "${LOCALCLAW_SECRETS_MAP}" ]; then pass "secrets.map present"
 else note "secrets.map missing (run scripts/bootstrap)"; fi
 
 case "${CREDENTIAL_PROVIDER}" in
-  none) note "no password-manager adapter configured (optional; see docs/BACKUP-RESTORE.md)" ;;
+  none)
+    if [ "${SECRET_BACKEND}" = "password-manager" ]; then
+      fault "password-manager backend requires CREDENTIAL_PROVIDER"
+    else
+      note "no password-manager adapter configured (optional; see docs/BACKUP-RESTORE.md)"
+    fi ;;
   bitwarden)
-    if have bw; then pass "Bitwarden CLI present"; else note "Bitwarden CLI missing (configured provider)"; fi ;;
+    if have bw; then pass "Bitwarden CLI present"; elif [ "${SECRET_BACKEND}" = "password-manager" ]; then fault "Bitwarden CLI missing (required backend provider)"; else note "Bitwarden CLI missing (configured provider)"; fi ;;
   1password)
-    if have op; then pass "1Password CLI present"; else note "1Password CLI missing (configured provider)"; fi ;;
+    if have op; then pass "1Password CLI present"; elif [ "${SECRET_BACKEND}" = "password-manager" ]; then fault "1Password CLI missing (required backend provider)"; else note "1Password CLI missing (configured provider)"; fi ;;
   lastpass)
-    if have lpass; then pass "LastPass CLI present"; else note "LastPass CLI missing (configured provider)"; fi ;;
+    if have lpass; then pass "LastPass CLI present"; elif [ "${SECRET_BACKEND}" = "password-manager" ]; then fault "LastPass CLI missing (required backend provider)"; else note "LastPass CLI missing (configured provider)"; fi ;;
   *) fault "unsupported CREDENTIAL_PROVIDER: ${CREDENTIAL_PROVIDER}" ;;
 esac
-if [ "${CREDENTIAL_PROVIDER}" != none ] && [ -z "${BACKUP_IDENTITY_REF}" ]; then
+if [ "${SECRET_BACKEND}" = "vault" ] && [ "${CREDENTIAL_PROVIDER}" != none ] && [ -z "${BACKUP_IDENTITY_REF}" ]; then
   fault "BACKUP_IDENTITY_REF is empty for configured password-manager provider"
 fi
 

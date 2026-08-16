@@ -57,19 +57,27 @@ read-only doctor, and executes the regression and disposable E2E tests. Use
 Environment overrides use the `LOCALCLAW_` prefix. Use the LocalClaw names
 documented in [`docs/INSTALL.md`](docs/INSTALL.md).
 
-> **Active development:** LocalClaw is still being built and refined. The
-> project is open for feedback, bug reports, documentation suggestions, and
-> security-minded review. Please open an issue or discussion on GitHub before
-> relying on it for a critical workstation or production workflow.
+## Secret backend choices
 
-> **AI-built · human-created · human-validated.** AI assists with implementation
-> and iteration, while the project direction, security decisions, code review,
-> testing, and operational validation remain human-led.
+LocalClaw supports three explicit modes:
 
-> **Password-manager support status:** Bitwarden is the only password-manager
-> integration tested by the project so far. 1Password and LastPass are planned
-> for future testing and validation; they may work now, but should be treated
-> as unvalidated and experimental until tested.
+- **Vault-only:** local Vault supplies runtime secrets; no password manager is
+  required.
+- **Vault + password manager:** Vault remains the runtime secret store, while
+  the password manager can hold recovery shares or backup identity material.
+- **Password-manager-only:** the configured provider CLI supplies mapped secrets
+  just in time; Vault is not started and no Vault backup is created.
+
+Choose the mode with `SECRET_BACKEND=vault` (the default) or
+`SECRET_BACKEND=password-manager`. Set `CREDENTIAL_PROVIDER` to `none`,
+`bitwarden`, `1password`, or `lastpass` as appropriate. Bitwarden is the only
+provider tested by the project; 1Password and LastPass may work, but remain
+experimental until validated.
+
+**AI-built · human-created · human-validated.** AI assists with implementation
+and iteration, while project direction, security decisions, code review, testing,
+and operational validation remain human-led. LocalClaw is still in active
+development and open to feedback and security-minded review.
 
 ---
 

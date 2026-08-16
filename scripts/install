@@ -21,7 +21,7 @@
 # Usage:
 #   scripts/install               # plan only (default): print what it would do
 #   scripts/install --apply       # actually install, after a typed confirmation
-#   scripts/install --password-manager 1password
+#   scripts/install --secret-backend password-manager --password-manager bitwarden
 #   scripts/install --help
 set -uo pipefail
 
@@ -31,6 +31,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 load_stack_config
 
 APPLY=0
+SECRET_BACKEND="${SECRET_BACKEND:-vault}"
+SECRET_BACKEND_SET=0
 PASSWORD_MANAGER="${CREDENTIAL_PROVIDER:-none}"
 PASSWORD_MANAGER_SET=0
 PASSWORD_MANAGER_CONFIGURED=0
@@ -45,14 +47,16 @@ confirmed=0
 
 usage() {
   cat >&2 <<EOF
-Usage: scripts/install [--apply] [--password-manager none|bitwarden|1password|lastpass]
+Usage: scripts/install [--apply] [--secret-backend vault|password-manager]
+                        [--password-manager none|bitwarden|1password|lastpass]
 
   (no flags)   Plan only. Detect OS, report present/missing tools, and print
                the exact commands that --apply would run. Makes no changes.
   --password-manager PROVIDER
-               Select which password-manager CLI to check/install. If omitted,
-               ask interactively when a terminal is available; otherwise use
-               the configured provider or none.
+               Select which password-manager CLI to check/install. It is
+               optional in Vault mode and required in password-manager mode.
+  --secret-backend BACKEND
+               Select vault (default) or password-manager for session secrets.
   --apply      Run the install commands for missing tools after you type a
                confirmation. Never pipes downloads into a shell.
   --help       Show this help.
@@ -66,6 +70,9 @@ EOF
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1 ;;
+    --secret-backend)
+      [ "$#" -ge 2 ] || { usage; fail "--secret-backend requires a value"; }
+      SECRET_BACKEND="$2"; SECRET_BACKEND_SET=1; shift ;;
     --password-manager)
       [ "$#" -ge 2 ] || { usage; fail "--password-manager requires a value"; }
       PASSWORD_MANAGER="$2"; PASSWORD_MANAGER_SET=1; shift ;;
@@ -79,6 +86,21 @@ case "${PASSWORD_MANAGER}" in
   none|bitwarden|1password|lastpass) : ;;
   *) usage; fail "Unsupported password manager: ${PASSWORD_MANAGER}" ;;
 esac
+case "${SECRET_BACKEND}" in
+  vault|password-manager) : ;;
+  *) usage; fail "Unsupported secret backend: ${SECRET_BACKEND}" ;;
+esac
+if [ "${SECRET_BACKEND}" = "password-manager" ] && [ "${PASSWORD_MANAGER}" = "none" ]; then
+  if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ -t 0 ]; then
+    printf 'Which password manager should provide session secrets? [bitwarden/1password/lastpass]: ' >&2
+    IFS= read -r answer || answer=""
+    [ -n "${answer}" ] && PASSWORD_MANAGER="${answer}"
+  fi
+  case "${PASSWORD_MANAGER}" in
+    bitwarden|1password|lastpass) : ;;
+    *) fail "SECRET_BACKEND=password-manager requires --password-manager bitwarden, 1password, or lastpass." ;;
+  esac
+fi
 if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ "${PASSWORD_MANAGER_CONFIGURED}" -eq 0 ] && [ -t 0 ]; then
   printf 'Which password manager should LOCALCLAW support? [none/bitwarden/1password/lastpass] (none): ' >&2
   IFS= read -r answer || answer=""
@@ -94,6 +116,7 @@ fi
 
 os="$(detect_os)"
 info "Detected operating system: ${os}"
+info "Secret backend: ${SECRET_BACKEND}"
 
 # Bootstrap prerequisites: Homebrew is the macOS package-manager entry point,
 # and Git is needed to obtain/update the repository. Fail before any package

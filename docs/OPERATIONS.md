@@ -9,7 +9,8 @@ operator-initiated — there is no unattended path.
 
 ## The mental model
 
-A work session is a single foreground process tree that you own:
+A work session is a single foreground process tree that you own. Choose either
+the default Vault flow or the explicit password-manager-only flow:
 
 ```text
 open terminal ─► unseal Vault ─► mint agent token ─► inject secrets to gateway
@@ -20,6 +21,20 @@ close TUI / Ctrl-C ─► revoke token ─► optional encrypted backup ─► s
 ```
 
 Close the terminal and the session is over. There is nothing left running.
+
+With `SECRET_BACKEND=password-manager`, the flow is instead:
+
+```text
+open terminal ─► retrieve mapped values through the configured provider CLI
+      │                                      │
+   do work in the OpenClaw TUI ◄────────────┘
+      │
+close TUI / Ctrl-C ─► stop gateway ─► remove temporary provider session state
+```
+
+Vault remains the recommended runtime backend. A password manager can also be
+configured alongside Vault for recovery and backup material without replacing
+Vault; select password-manager-only only when you explicitly want that tradeoff.
 
 ## Preflight (read-only)
 
@@ -102,6 +117,10 @@ With bootstrap done, start a session with `make work-session` (or
 6. On a clean exit, runs guarded cleanup **in order**: stop the gateway, take an
    encrypted backup with the backup token (while Vault is still unsealed), revoke
    both session tokens, stop Vault, and remove the temporary session logs.
+
+When `SECRET_BACKEND=password-manager` is selected, the session skips Vault,
+retrieves each mapped reference through the configured provider CLI, injects the
+values only into the gateway child, and does not create a Vault backup.
 
 ```sh
 scripts/work-session --dry-run       # validate only; starts/mints/reads nothing

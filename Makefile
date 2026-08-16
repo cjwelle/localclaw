@@ -53,7 +53,7 @@ vault-bootstrap: ## Guide Vault init/policies/roles (interactive; you hold all s
 	@scripts/vault-bootstrap init
 
 .PHONY: work-session
-work-session: ## Start a foreground work session (owns Vault + loopback gateway/TUI; Ctrl-C ends it).
+work-session: ## Start a foreground work session (Vault or configured password-manager backend; Ctrl-C ends it).
 	@echo "Starting a foreground, loopback-only work session. Exit the TUI to end it."
 	@scripts/work-session
 

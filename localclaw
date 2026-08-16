@@ -12,6 +12,10 @@ Commands: setup, install, bootstrap, doctor, update, credentials, backup verify,
 
 Guided setup:
   localclaw setup                 Install, update-check, bootstrap, doctor, test, E2E
+  localclaw setup --secret-backend vault|password-manager
+                                  Select the session secret backend
+  localclaw setup --password-manager bitwarden|1password|lastpass
+                                  Select the password-manager CLI
   localclaw setup --apply-update  Also apply the latest canonical release tag
   localclaw setup --skip-tests    Skip the regression suite
   localclaw setup --skip-e2e      Skip the end-to-end lifecycle test
@@ -20,13 +24,32 @@ Run 'localclaw credentials --help' for password-manager setup.
 EOF
 }
 
+write_setup_config_key() {
+  local key="$1" value="$2" file tmp
+  file="${XDG_CONFIG_HOME:-${HOME}/.config}/localclaw/stack.conf"
+  [ -r "${file}" ] || { printf 'Missing setup config: %s\n' "${file}" >&2; return 1; }
+  tmp="$(mktemp "${file}.tmp.XXXXXX")" || return 1
+  awk -v key="${key}" -v value="${value}" '
+    BEGIN { done=0 }
+    $0 ~ "^[[:space:]]*" key "=" {
+      if (!done) { print key "=" value; done=1 }
+      next
+    }
+    { print }
+    END { if (!done) print key "=" value }
+  ' "${file}" >"${tmp}" || { rm -f "${tmp}"; return 1; }
+  chmod 600 "${tmp}" && mv "${tmp}" "${file}"
+}
+
 setup() {
-  local apply_update=0 skip_tests=0 skip_e2e=0
+  local apply_update=0 skip_tests=0 skip_e2e=0 secret_backend="" password_manager=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --apply-update) apply_update=1 ;;
       --skip-tests) skip_tests=1 ;;
       --skip-e2e) skip_e2e=1 ;;
+      --secret-backend) [ "$#" -ge 2 ] || { printf '%s\n' '--secret-backend requires a value' >&2; return 2; }; secret_backend="$2"; shift ;;
+      --password-manager) [ "$#" -ge 2 ] || { printf '%s\n' '--password-manager requires a value' >&2; return 2; }; password_manager="$2"; shift ;;
       -h|--help) usage; return 0 ;;
       *) printf 'Unknown setup option: %s\n' "$1" >&2; return 2 ;;
     esac
@@ -35,7 +58,15 @@ setup() {
 
   printf '%s\n' '== LocalClaw guided setup ==' >&2
   printf '%s\n' '[1/6] Checking and installing prerequisites (permission required)...' >&2
-  "${ROOT}/scripts/install" --apply || return $?
+  if [ -n "${secret_backend}" ] && [ -n "${password_manager}" ]; then
+    "${ROOT}/scripts/install" --apply --secret-backend "${secret_backend}" --password-manager "${password_manager}" || return $?
+  elif [ -n "${secret_backend}" ]; then
+    "${ROOT}/scripts/install" --apply --secret-backend "${secret_backend}" || return $?
+  elif [ -n "${password_manager}" ]; then
+    "${ROOT}/scripts/install" --apply --password-manager "${password_manager}" || return $?
+  else
+    "${ROOT}/scripts/install" --apply || return $?
+  fi
 
   printf '%s\n' '[2/6] Checking for a canonical release update...' >&2
   "${ROOT}/scripts/update" --check || return $?
@@ -48,6 +79,12 @@ setup() {
 
   printf '%s\n' '[4/6] Bootstrapping LocalClaw configuration and state...' >&2
   "${ROOT}/scripts/bootstrap" || return $?
+  if [ -n "${secret_backend}" ]; then
+    write_setup_config_key SECRET_BACKEND "${secret_backend}" || return $?
+  fi
+  if [ -n "${password_manager}" ]; then
+    write_setup_config_key CREDENTIAL_PROVIDER "${password_manager}" || return $?
+  fi
   printf '%s\n' '[5/6] Running the read-only doctor...' >&2
   "${ROOT}/scripts/doctor" || return $?
 
