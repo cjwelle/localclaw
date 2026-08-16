@@ -20,6 +20,12 @@ Guided setup:
   localclaw setup --skip-tests    Skip the regression suite
   localclaw setup --skip-e2e      Skip the end-to-end lifecycle test
 
+Installer:
+  localclaw install --secret-backend vault|password-manager
+                                  Select the session secret backend
+  localclaw install --password-manager none|bitwarden|1password|lastpass
+                                  Select the password-manager CLI to install
+
 Run 'localclaw credentials --help' for password-manager setup.
 EOF
 }

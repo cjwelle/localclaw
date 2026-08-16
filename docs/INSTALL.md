@@ -486,24 +486,3 @@ secrets in the same record.
 > identity during backup verification. It does not store provider passwords,
 > session tokens, or unseal shares. See the step-by-step setup in
 > [`BACKUP-RESTORE.md`](BACKUP-RESTORE.md).
-
-## 2. Verify
-
-Run the read-only preflight — it makes no changes:
-
-```sh
-make doctor      # or: scripts/doctor
-```
-
-Fix any `[FAIL]` lines (missing tools, wrong permissions). `[WARN]` lines are
-advisory (e.g. OpenClaw not yet installed, backups not configured).
-
-## 3. Next steps
-
-1. [`CONFIGURATION.md`](CONFIGURATION.md) — copy and edit `stack.conf`, render
-   templates, and initialize the work-memory database.
-2. Initialize and unseal Vault **yourself** (the stack never handles unseal or
-   recovery material). See [`SECURITY.md`](SECURITY.md) and
-   [`OPERATIONS.md`](OPERATIONS.md).
-3. Apply the policies in [`../policies/`](../policies/) and create your KV v2
-   mount and auth role.
