@@ -1,9 +1,13 @@
-# Self-hosting guide: from zero to a working stack
+# Manual-Step Installation: from zero to a working stack
 
 This is the plain-language, copy-and-check guide for installing the stack on a
 new Mac or Ubuntu machine. It explains both the commands a person runs and the
 checks that automation should perform. Start here if you are new to the
 repository; use the linked specialist documents when you need the details.
+
+The Ubuntu instructions may also work inside WSL. WSL is not fully tested or
+validated, so use the Ubuntu/Linux shell and treat any WSL-specific behavior as
+unsupported until verified. Windows-native execution is not supported.
 
 ## What you are installing
 
@@ -25,7 +29,7 @@ You need:
 - full-disk encryption enabled (FileVault on macOS, LUKS on Ubuntu when
   possible);
 - a secure place outside this repository for Vault recovery material;
-- network access only for installing packages, OpenClaw, and GitLab access.
+- network access only for installing packages and OpenClaw.
 
 Never put a Vault token, unseal share, API key, password, `age` private key, or
 rendered runtime config in git, a ticket, a chat message, or a CI variable.
@@ -58,8 +62,8 @@ scripts/install --apply
 ```
 
 The installer is plan-by-default. `--apply` requires an explicit confirmation;
-it does not install OpenClaw, start services, create credentials, or configure
-GitLab.
+it installs missing supported prerequisites and OpenClaw, but does not start
+services or create credentials.
 
 If you prefer to install manually, use [`INSTALL.md`](INSTALL.md). Install
 OpenClaw only from its official documentation:
@@ -133,6 +137,21 @@ The repository must never receive them.
 Then unseal Vault by running the printed `vault operator unseal` command with
 enough different shares to reach the threshold.
 
+If you are doing this manually, set `VAULT_ADDR` to the local listener first,
+then run the standard Vault CLI command once per share:
+
+```sh
+export VAULT_ADDR="http://127.0.0.1:18200"
+vault operator unseal
+```
+
+Optional: if you need to stop the foreground Vault from the second terminal,
+use:
+
+```sh
+scripts/vault-stop
+```
+
 Configure the local KV mount, policies, admin login, and short-lived session
 roles:
 
@@ -155,11 +174,38 @@ scripts/vault-bootstrap revoke-root
 
 Do not revoke the unseal shares; they are needed if Vault seals again.
 
+If you are using a password manager, store the recovery material as separate
+items so you do not paste the wrong value later:
+
+- one entry for the **root token**;
+- one entry for each **unseal share** (`unseal share 1`, `unseal share 2`,
+  and so on);
+- a clear label such as `LocalClaw Vault recovery`;
+- a dedicated folder/vault if your provider supports one.
+
+Do not combine the root token, unseal shares, backup identity, or unrelated
+secrets in the same record.
+
+After the admin login exists, keep `VAULT_ADDR` pointed at the local listener
+and mint the same short-lived least-privilege session tokens with the standard
+Vault CLI token-create flow:
+
+Use `export`, not `set`, so the address stays in scope for the later Vault
+commands in the same shell.
+
+```sh
+export VAULT_ADDR="http://127.0.0.1:18200"
+vault token create -role=agent-session -policy=agent -ttl=8h
+vault token create -role=backup-session -policy=backup -ttl=8h
+```
+
+Those are the roles used by the foreground gateway and backup path.
+
 ## Step 6: add secrets to Vault
 
 Use the Vault CLI with a privileged operator token supplied interactively or by
-your approved secret manager. Do not put the token in a shell script or command
-history. Example path only:
+your approved secret manager. Set `VAULT_ADDR` first, then use the exact path
+that matches the mount/path/field entries in `secrets.map`:
 
 ```sh
 export VAULT_ADDR="http://127.0.0.1:18200"
@@ -211,7 +257,8 @@ make test
 ```
 
 The E2E test also starts a disposable Vault and mock gateway. It does not use
-your configured Vault or your real `secrets.map`:
+your configured Vault or your real `secrets.map`. See
+[`E2E.md`](E2E.md) for the detailed behavior:
 
 ```sh
 tests/e2e/run.sh
@@ -236,23 +283,14 @@ Backups are optional and disabled until configured. Follow
 Never test restore against production data first. Inspect an archive with the
 read-only default before using any restore flag.
 
-## Step 10: connect GitLab CI safely
+## Step 10: connect continuous integration safely
 
-For a GitLab pipeline, set up two project runners and then configure the
-maintainer-only Vault side of the E2E credential flow. The CI job uses a
-short-lived GitLab OIDC ID token; it does not receive a static Vault token.
-
-The Vault role must:
-
-- trust the GitLab issuer and its current signing keys;
-- bind to the exact project ID and intended job claims;
-- have a short TTL;
-- attach a read-only policy for only the single E2E secret path.
-
-The job reads one field, unsets its temporary Vault token, and passes that value
-only to its disposable local Vault. Follow [`CI-CD.md`](CI-CD.md) and
-[`GITLAB-SETUP.md`](GITLAB-SETUP.md) for runner registration and the exact
-operator verification checklist.
+If you enable CI on your preferred provider, run the same local checks in an
+isolated job: shell linting, the dependency-light test suite, the disposable
+E2E test, secret scanning, and release verification. Use short-lived job
+identities or provider-managed secret storage when a job needs credentials.
+Never commit tokens or place long-lived Vault credentials in repository files.
+See [`CI-CD.md`](CI-CD.md) for the provider-neutral checklist.
 
 ## Step 11: update an existing installation
 
@@ -313,10 +351,10 @@ It must not automatically:
 
 | Symptom | Meaning | Next action |
 | --- | --- | --- |
-| `Vault is sealed` | Vault needs the threshold of unseal shares | Run `vault operator unseal` interactively. |
+| `Vault is sealed` | Vault needs the threshold of unseal shares | Run `VAULT_ADDR=http://127.0.0.1:18200 vault operator unseal` interactively. |
 | `permission denied` | The current token lacks the required policy | Use the approved operator login; do not add broad policy automatically. |
 | `port is already in use` | Another process owns the configured listener | Inspect the port, stop only a process you own, then retry. |
-| E2E says a port is not listening on Ubuntu | The runner may lack common port tools | Confirm the checkout includes the Python socket fallback and rerun. |
+| E2E says a port is not listening on Ubuntu | The test environment may lack common port tools | Confirm the checkout includes the Python socket fallback and rerun. |
 | E2E says password file mode is invalid on Ubuntu | An older checkout used macOS-only `stat` flags | Update to the current checkout; the check now supports both `stat` variants. |
 | `BACKUP_DIR is not set` | Backups are intentionally disabled | Configure backups or accept the warning for a test-only session. |
 

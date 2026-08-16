@@ -170,9 +170,9 @@ EOF
 # configure - mount + policies + userpass admin + token roles. Idempotent.
 # ---------------------------------------------------------------------------
 cmd_configure() {
-  local admin_pol="${OSLS_REPO_DIR}/policies/admin.hcl"
-  local agent_pol="${OSLS_REPO_DIR}/policies/agent.hcl"
-  local backup_pol="${OSLS_REPO_DIR}/policies/backup.hcl"
+  local admin_pol="${LOCALCLAW_REPO_DIR}/policies/admin.hcl"
+  local agent_pol="${LOCALCLAW_REPO_DIR}/policies/agent.hcl"
+  local backup_pol="${LOCALCLAW_REPO_DIR}/policies/backup.hcl"
   local f
   for f in "${admin_pol}" "${agent_pol}" "${backup_pol}"; do
     [ -r "${f}" ] || fail "Policy file missing or unreadable: ${f}"

@@ -48,19 +48,19 @@ act() {
 
 # --- Directories ------------------------------------------------------------
 info "Bootstrapping ${APP_NAME}"
-info "config:    ${OSLS_CONFIG_DIR}"
-info "state:     ${OSLS_STATE_DIR}"
-info "workspace: ${OSLS_WORKSPACE_DIR}"
+info "config:    ${LOCALCLAW_CONFIG_DIR}"
+info "state:     ${LOCALCLAW_STATE_DIR}"
+info "workspace: ${LOCALCLAW_WORKSPACE_DIR}"
 
 for d in \
-  "${OSLS_CONFIG_DIR}" \
-  "${OSLS_STATE_DIR}" \
-  "${OSLS_VAULT_DATA_DIR}" \
-  "${OSLS_VAULT_HOME}" \
-  "${OSLS_OPENCLAW_STATE_DIR}" \
-  "$(dirname "${OSLS_MEMORY_DB}")" \
-  "${OSLS_LOG_DIR}" \
-  "${OSLS_WORKSPACE_DIR}"
+  "${LOCALCLAW_CONFIG_DIR}" \
+  "${LOCALCLAW_STATE_DIR}" \
+  "${LOCALCLAW_VAULT_DATA_DIR}" \
+  "${LOCALCLAW_VAULT_HOME}" \
+  "${LOCALCLAW_OPENCLAW_STATE_DIR}" \
+  "$(dirname "${LOCALCLAW_MEMORY_DB}")" \
+  "${LOCALCLAW_LOG_DIR}" \
+  "${LOCALCLAW_WORKSPACE_DIR}"
 do
   if [ -d "${d}" ]; then
     act "ensure owner-only dir (exists): ${d}" ensure_private_dir "${d}"
@@ -90,8 +90,8 @@ _do_seed() {
   ok "seeded $(basename "${dst}") (edit it before first use)"
 }
 
-seed_if_absent "${OSLS_REPO_DIR}/config/stack.conf.example" "${OSLS_STACK_CONF}"
-seed_if_absent "${OSLS_REPO_DIR}/config/secrets.map.sample" "${OSLS_SECRETS_MAP}"
+seed_if_absent "${LOCALCLAW_REPO_DIR}/config/stack.conf.example" "${LOCALCLAW_STACK_CONF}"
+seed_if_absent "${LOCALCLAW_REPO_DIR}/config/secrets.map.sample" "${LOCALCLAW_SECRETS_MAP}"
 
 # Reload config now that stack.conf is guaranteed to exist (picks up its values
 # for the render below). Harmless in dry-run.
@@ -102,24 +102,24 @@ seed_if_absent "${OSLS_REPO_DIR}/config/secrets.map.sample" "${OSLS_SECRETS_MAP}
 # re-render on every run. render_template preserves any existing file as a
 # timestamped .bak before writing and refuses unresolved @PLACEHOLDERS@.
 render_vault_hcl() {
-  render_template "${OSLS_REPO_DIR}/config/vault.hcl.template" "${OSLS_VAULT_HCL}" \
+  render_template "${LOCALCLAW_REPO_DIR}/config/vault.hcl.template" "${LOCALCLAW_VAULT_HCL}" \
     VAULT_HOST "${VAULT_HOST}" \
     VAULT_PORT "${VAULT_PORT}" \
     VAULT_CLUSTER_PORT "${VAULT_CLUSTER_PORT}" \
     VAULT_NODE_ID "${VAULT_NODE_ID}" \
-    VAULT_DATA_DIR "${OSLS_VAULT_DATA_DIR}"
-  chmod 600 "${OSLS_VAULT_HCL}" 2>/dev/null || true
+    VAULT_DATA_DIR "${LOCALCLAW_VAULT_DATA_DIR}"
+  chmod 600 "${LOCALCLAW_VAULT_HCL}" 2>/dev/null || true
 }
 render_openclaw_json() {
-  render_template "${OSLS_REPO_DIR}/config/openclaw.json.example" "${OSLS_OPENCLAW_JSON}" \
+  render_template "${LOCALCLAW_REPO_DIR}/config/openclaw.json.example" "${LOCALCLAW_OPENCLAW_JSON}" \
     OPENCLAW_PORT "${OPENCLAW_PORT}" \
-    WORKSPACE_DIR "${OSLS_WORKSPACE_DIR}"
-  chmod 600 "${OSLS_OPENCLAW_JSON}" 2>/dev/null || true
+    WORKSPACE_DIR "${LOCALCLAW_WORKSPACE_DIR}"
+  chmod 600 "${LOCALCLAW_OPENCLAW_JSON}" 2>/dev/null || true
 }
 
 if [ "${DRY_RUN}" -eq 1 ]; then
-  printf '  [plan] render vault.hcl -> %s\n' "${OSLS_VAULT_HCL}" >&2
-  printf '  [plan] render openclaw.json -> %s\n' "${OSLS_OPENCLAW_JSON}" >&2
+  printf '  [plan] render vault.hcl -> %s\n' "${LOCALCLAW_VAULT_HCL}" >&2
+  printf '  [plan] render openclaw.json -> %s\n' "${LOCALCLAW_OPENCLAW_JSON}" >&2
 else
   render_vault_hcl
   ok "rendered vault.hcl"
@@ -129,7 +129,7 @@ fi
 
 # --- Work-memory database ---------------------------------------------------
 init_memory_db() {
-  local db="${OSLS_MEMORY_DB}" schema="${OSLS_REPO_DIR}/sql/schema.sql"
+  local db="${LOCALCLAW_MEMORY_DB}" schema="${LOCALCLAW_REPO_DIR}/sql/schema.sql"
   [ -r "${schema}" ] || fail "Missing schema: ${schema}"
   if ! have sqlite3; then
     warn "sqlite3 not found; skipping work-memory DB init (run scripts/install, then re-run bootstrap)."
@@ -146,7 +146,7 @@ init_memory_db() {
 
 if [ "${DRY_RUN}" -eq 1 ]; then
   if have sqlite3; then
-    printf '  [plan] apply sql/schema.sql -> %s\n' "${OSLS_MEMORY_DB}" >&2
+    printf '  [plan] apply sql/schema.sql -> %s\n' "${LOCALCLAW_MEMORY_DB}" >&2
   else
     printf '  [plan] SKIP DB init (sqlite3 not installed)\n' >&2
   fi
@@ -156,7 +156,7 @@ fi
 
 # --- Workspace template (copy files that are not already present) -----------
 seed_workspace() {
-  local tmpl="${OSLS_REPO_DIR}/workspace-template"
+  local tmpl="${LOCALCLAW_REPO_DIR}/workspace-template"
   [ -d "${tmpl}" ] || { warn "No workspace-template directory; skipping."; return 0; }
   # Copy each regular file that does not already exist in the workspace. Never
   # overwrite an existing workspace file; skip the .gitkeep placeholder.
@@ -165,7 +165,7 @@ seed_workspace() {
   find "${tmpl}" -type f | while IFS= read -r src; do
     rel="${src#"${tmpl}"/}"
     case "${rel}" in */.gitkeep|.gitkeep) continue ;; esac
-    dst="${OSLS_WORKSPACE_DIR}/${rel}"
+    dst="${LOCALCLAW_WORKSPACE_DIR}/${rel}"
     if [ -e "${dst}" ]; then
       continue
     fi
@@ -177,7 +177,7 @@ seed_workspace() {
 }
 
 if [ "${DRY_RUN}" -eq 1 ]; then
-  printf '  [plan] copy missing workspace-template files -> %s\n' "${OSLS_WORKSPACE_DIR}" >&2
+  printf '  [plan] copy missing workspace-template files -> %s\n' "${LOCALCLAW_WORKSPACE_DIR}" >&2
 else
   seed_workspace
 fi
@@ -187,7 +187,7 @@ if [ "${DRY_RUN}" -eq 1 ]; then
   info "Dry run complete. No changes were made."
 else
   ok "Bootstrap complete."
-  info "Next: edit ${OSLS_STACK_CONF} (and secrets.map), run scripts/doctor, then"
+  info "Next: edit ${LOCALCLAW_STACK_CONF} (and secrets.map), run scripts/doctor, then"
   info "start Vault with scripts/vault-start and initialize it with scripts/vault-bootstrap."
 fi
 exit 0

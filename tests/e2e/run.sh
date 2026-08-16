@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-T="$(mktemp -d "${TMPDIR:-/tmp}/osls-e2e.XXXXXX")"
-trap 'rc=$?; if [ "$rc" -ne 0 ] && [ "${OSLS_E2E_KEEP:-}" = 1 ]; then echo "E2E temp retained: $T" >&2; else rm -rf "$T" 2>/dev/null || true; fi; exit "$rc"' EXIT INT TERM
+T="$(mktemp -d "${TMPDIR:-/tmp}/localclaw-e2e.XXXXXX")"
+trap 'rc=$?; if [ "$rc" -ne 0 ] && [ "${LOCALCLAW_E2E_KEEP:-}" = 1 ]; then echo "E2E temp retained: $T" >&2; else rm -rf "$T" 2>/dev/null || true; fi; exit "$rc"' EXIT INT TERM
 for b in bash python3 expect vault jq; do command -v "$b" >/dev/null 2>&1 || { echo "SKIP: missing $b" >&2; exit 0; }; done
-if [ -n "${OSLS_E2E_PORT_BASE:-}" ]; then
-  VPORT="${OSLS_E2E_PORT_BASE}"
+if [ -n "${LOCALCLAW_E2E_PORT_BASE:-}" ]; then
+  VPORT="${LOCALCLAW_E2E_PORT_BASE}"
   CPORT="$((VPORT + 10))"
   GPORT="$((VPORT + 2))"
 else
@@ -27,9 +27,9 @@ H="$T/home"; B="$T/bin"; mkdir -p "$H" "$B"
 cat >"$B/vault-e2e" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-v="${OSLS_E2E_REAL_VAULT:-vault}"; a="http://127.0.0.1:${OSLS_E2E_VAULT_PORT}"
+v="${LOCALCLAW_E2E_REAL_VAULT:-vault}"; a="http://127.0.0.1:${LOCALCLAW_E2E_VAULT_PORT}"
 if [ "${1:-}" = server ]; then
-  "$v" server -dev -dev-root-token-id=e2e-root -dev-listen-address="127.0.0.1:${OSLS_E2E_VAULT_PORT}" >"${OSLS_E2E_VAULT_LOG}" 2>&1 & p=$!
+  "$v" server -dev -dev-root-token-id=e2e-root -dev-listen-address="127.0.0.1:${LOCALCLAW_E2E_VAULT_PORT}" >"${LOCALCLAW_E2E_VAULT_LOG}" 2>&1 & p=$!
   trap 'kill "$p" 2>/dev/null || true; wait "$p" 2>/dev/null || true' EXIT INT TERM
   for i in $(seq 1 80); do VAULT_ADDR="$a" VAULT_TOKEN=e2e-root "$v" status >/dev/null 2>&1 && break; sleep .1; done
   VAULT_ADDR="$a" VAULT_TOKEN=e2e-root "$v" secrets enable -path=local kv-v2 >/dev/null 2>&1 || true
@@ -52,11 +52,11 @@ P
   VAULT_ADDR="$a" VAULT_TOKEN=e2e-root "$v" write auth/userpass/users/e2e-admin password=e2e-admin-pass policies=admin >/dev/null
   VAULT_ADDR="$a" VAULT_TOKEN=e2e-root "$v" write auth/token/roles/agent-session allowed_policies=agent orphan=true renewable=false token_ttl=8h token_max_ttl=8h >/dev/null
   VAULT_ADDR="$a" VAULT_TOKEN=e2e-root "$v" write auth/token/roles/backup-session allowed_policies=backup orphan=true renewable=false token_ttl=8h token_max_ttl=8h >/dev/null
-  VAULT_ADDR="$a" VAULT_TOKEN=e2e-root "$v" kv put local/test/credential api_key="${OSLS_E2E_EXPECTED_API_KEY:-e2e-secret-value}" >/dev/null
-  printf '%s' e2e-admin-pass | VAULT_ADDR="$a" VAULT_TOKEN='' HOME="${OSLS_E2E_CLIENT_HOME:-/tmp}" "$0" login -method=userpass -no-store -format=json username=e2e-admin password=- >/dev/null || { echo 'E2E admin setup self-test failed' >&2; exit 1; }
-  : >"${OSLS_E2E_VAULT_READY_FILE}"
+  VAULT_ADDR="$a" VAULT_TOKEN=e2e-root "$v" kv put local/test/credential api_key="${LOCALCLAW_E2E_EXPECTED_API_KEY:-e2e-secret-value}" >/dev/null
+  printf '%s' e2e-admin-pass | VAULT_ADDR="$a" VAULT_TOKEN='' HOME="${LOCALCLAW_E2E_CLIENT_HOME:-/tmp}" "$0" login -method=userpass -no-store -format=json username=e2e-admin password=- >/dev/null || { echo 'E2E admin setup self-test failed' >&2; exit 1; }
+  : >"${LOCALCLAW_E2E_VAULT_READY_FILE}"
   wait "$p"
-else VAULT_ADDR="$a" HOME="${OSLS_E2E_CLIENT_HOME:-/tmp}" exec "$v" "$@"; fi
+else VAULT_ADDR="$a" HOME="${LOCALCLAW_E2E_CLIENT_HOME:-/tmp}" exec "$v" "$@"; fi
 EOF
 chmod 700 "$B/vault-e2e"
 cat >"$B/openclaw-e2e" <<'EOF'
@@ -64,9 +64,9 @@ cat >"$B/openclaw-e2e" <<'EOF'
 set -euo pipefail
 case "$*" in
   *" gateway run "*)
-    [ "${TEST_API_KEY:-}" = "${OSLS_E2E_EXPECTED_API_KEY:-e2e-secret-value}" ] || exit 1
-    echo gateway-secret-injection=pass >"$OSLS_E2E_MARKER"
-    exec python3 - "$OSLS_E2E_OPENCLAW_PORT" <<'P'
+    [ "${TEST_API_KEY:-}" = "${LOCALCLAW_E2E_EXPECTED_API_KEY:-e2e-secret-value}" ] || exit 1
+    echo gateway-secret-injection=pass >"$LOCALCLAW_E2E_MARKER"
+    exec python3 - "$LOCALCLAW_E2E_OPENCLAW_PORT" <<'P'
 import sys
 from http.server import BaseHTTPRequestHandler,HTTPServer
 class H(BaseHTTPRequestHandler):
@@ -80,9 +80,9 @@ P
 esac
 EOF
 chmod 700 "$B/openclaw-e2e"
-export HOME="$H" XDG_CONFIG_HOME="$H/.config" XDG_STATE_HOME="$H/.state" OSLS_E2E_CLIENT_HOME="$T/vault-client-home"
-mkdir -p "$OSLS_E2E_CLIENT_HOME"
-export OSLS_E2E_VAULT_PORT="$VPORT" OSLS_E2E_OPENCLAW_PORT="$GPORT" OSLS_E2E_VAULT_LOG="$T/vault.log" OSLS_E2E_MARKER="$T/marker" OSLS_E2E_REAL_VAULT="$(command -v vault)" OSLS_E2E_VAULT_READY_FILE="$T/vault-ready"
+export HOME="$H" XDG_CONFIG_HOME="$H/.config" XDG_STATE_HOME="$H/.state" LOCALCLAW_E2E_CLIENT_HOME="$T/vault-client-home"
+mkdir -p "$LOCALCLAW_E2E_CLIENT_HOME"
+export LOCALCLAW_E2E_VAULT_PORT="$VPORT" LOCALCLAW_E2E_OPENCLAW_PORT="$GPORT" LOCALCLAW_E2E_VAULT_LOG="$T/vault.log" LOCALCLAW_E2E_MARKER="$T/marker" LOCALCLAW_E2E_REAL_VAULT="$(command -v vault)" LOCALCLAW_E2E_VAULT_READY_FILE="$T/vault-ready"
 bash "$ROOT/scripts/bootstrap" >/dev/null
 cat >"$H/.config/localclaw/stack.conf" <<EOF
 VAULT_PORT=$VPORT
@@ -102,10 +102,10 @@ bash "$ROOT/scripts/bootstrap" >/dev/null
 ADMIN_PW_FILE="$T/admin-pw"
 (umask 077; printf '%s\n' e2e-admin-pass >"$ADMIN_PW_FILE")
 chmod 600 "$ADMIN_PW_FILE"
-OSLS_E2E_ROOT="$ROOT" OSLS_E2E=1 OSLS_E2E_ADMIN_PASSWORD_FILE="$ADMIN_PW_FILE" expect <<'P'
+LOCALCLAW_E2E_ROOT="$ROOT" LOCALCLAW_E2E=1 LOCALCLAW_E2E_ADMIN_PASSWORD_FILE="$ADMIN_PW_FILE" expect <<'P'
 set timeout 90
 log_user 1
-spawn $env(OSLS_E2E_ROOT)/scripts/work-session
+spawn $env(LOCALCLAW_E2E_ROOT)/scripts/work-session
 expect {
   -re {Opening the OpenClaw terminal UI} { send -- "\004"; exp_continue }
   eof {}

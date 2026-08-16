@@ -121,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `verify` validates the `VERSION` format and, on a tag build, requires
   `CI_COMMIT_TAG == v<VERSION>` exactly. `prepare <version>` edits `VERSION` and
   rolls the CHANGELOG `Unreleased` heading into the new version — and **never
-  runs git** (no commit/tag/push) and never auto-increments. `OSLS_RELEASE_ROOT`
+  runs git** (no commit/tag/push) and never auto-increments. `LOCALCLAW_RELEASE_ROOT`
   lets the tests exercise `prepare` against a throwaway copy.
 - **`.gitlab-ci.yml`** — internal-friendly pipeline (free tier; no privileged
   containers, no `services:` daemons, no registry required): shellcheck lint,

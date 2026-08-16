@@ -1,6 +1,6 @@
 # Operations
 
-> If this is a new machine, use [`SELF-HOSTING.md`](SELF-HOSTING.md) before
+> If this is a new machine, use [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md) before
 > using this day-to-day runbook. It explains the first initialization and the
 > safe boundaries for automation.
 
@@ -59,6 +59,7 @@ This sequence is done **by you**, once. The tooling never sees your unseal or
 recovery material.
 
 1. Start Vault (`make vault-start`) in a dedicated terminal.
+   If you need to stop it from another terminal, run `make vault-stop`.
 2. In another terminal, initialize it **yourself** and record the recovery
    material in your secret manager:
 

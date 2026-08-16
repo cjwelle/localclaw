@@ -36,33 +36,26 @@ database.
 > then run the reviewed copy. This project never curl-pipes a script into a
 > shell, and neither should you.
 
-> **Status: foundation (v0.1.0).** Use `./osls` as the unified install,
+> **Status: foundation (v0.1.0).** Use `./localclaw` as the unified install,
 > update, doctor, backup, and credential-adapter entry point. This repository ships documentation,
 > configuration templates, Vault policies, the SQL schema, workspace templates,
 > and the scripts: `install`, `bootstrap`, `vault-bootstrap`, the read-only
-> `doctor`, the foreground `vault-start`, the foreground session launcher
-> `work-session`, the age-encrypted `backup`, the read-only-by-default `restore`,
-> and the plan-by-default `uninstall`. A full new-machine
+> `doctor`, the foreground `vault-start`, the companion `vault-stop`, the
+> foreground session launcher `work-session`, the age-encrypted `backup`, the
+> read-only-by-default `restore`, and the plan-by-default `uninstall`. A full new-machine
 > `rebuild-laptop` remains manual by design (see
 > [`docs/BACKUP-RESTORE.md`](docs/BACKUP-RESTORE.md) and
 > [CHANGELOG.md](CHANGELOG.md)). Running these scripts still **does not** install
 > software without `--apply`, start background services, initialize git, or
 > handle your credentials for you.
 
-> **Active development:** LocalClaw is still being built and refined. The
-> project is open for feedback, bug reports, documentation suggestions, and
-> security-minded review. Please open an issue or discussion on GitHub before
-> relying on it for a critical workstation or production workflow.
+For the guided one-command workflow, run `./localclaw setup`. It checks and
+installs prerequisites, checks for updates, bootstraps configuration, runs the
+read-only doctor, and executes the regression and disposable E2E tests. Use
+`./localclaw setup --apply-update` only after reviewing the update check.
 
-> **AI-built · human-created · human-validated.** AI assists with implementation
-> and iteration, while the project direction, security decisions, code review,
-> testing, and operational validation remain human-led.
-
-> **Password-manager support status:** Bitwarden is the only password-manager
-> integration tested by the project so far. 1Password and LastPass are planned
-> for future testing and validation; they are supported as implementation
-> targets and may work now, but should be treated as unvalidated and used with
-> care until tested.
+Environment overrides use the `LOCALCLAW_` prefix. Use the LocalClaw names
+documented in [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ---
 
@@ -123,9 +116,11 @@ flow.
 
 - **macOS** via [Homebrew][brew].
 - **Ubuntu / Debian** via `apt` (plus HashiCorp's apt repository for Vault).
-- **Windows Subsystem for Linux (WSL)** is not tested by the project, but should
-  work when you follow the Ubuntu / Debian instructions from inside an Ubuntu
-  distribution. Windows-native execution is not currently supported.
+
+Windows users may be able to run LocalClaw inside the Ubuntu side of WSL using
+the Ubuntu/Debian instructions above. WSL should work in principle because the
+scripts target Linux userland, but WSL has not been fully tested or validated;
+Windows-native execution is not a supported path at this time.
 
 The scripts target Bash 3.2+ (so they run on the stock macOS shell) and avoid
 Bash 4-only features. Exact tested OS versions are a
@@ -133,10 +128,17 @@ Bash 4-only features. Exact tested OS versions are a
 
 ## Prerequisites
 
-These are the prerequisites LocalClaw checks. The installer can install
-supported missing tools through the platform package manager when you explicitly
-approve it with `--apply`; Git and the package-manager bootstrap may need to be
-available first:
+Before running the installer, install the bootstrap tools: **Git** on every
+platform, and **Homebrew on macOS**. Use the official Git instructions at
+<https://git-scm.com/downloads>; on macOS, Apple's Command Line Tools also
+provide Git (`xcode-select --install`). Install Homebrew from
+<https://brew.sh/>. LocalClaw does not install either bootstrap tool for you.
+Ubuntu/Debian uses `apt` for the remaining prerequisites.
+
+The installer checks these first and, when you run `scripts/install --apply`,
+installs any missing supported tools/services through Homebrew or apt. It asks
+for an explicit `INSTALL` confirmation before making changes and may require
+administrator permissions:
 
 - `vault` — HashiCorp Vault CLI/server
 - `sqlite3` — work-memory database
@@ -145,15 +147,16 @@ available first:
 - `age` and `age-keygen` — optional, for encrypted backups
 - `tar`, `shasum`/`sha256sum` — packaging and integrity
 - `openclaw` — the OpenClaw gateway/TUI from the official
-  [install docs](https://docs.openclaw.ai/install). The confirmed installer uses
+  [install docs](https://docs.openclaw.ai/install). The LocalClaw installer uses
   the `extended-stable` channel: `npm install -g openclaw@extended-stable`.
 - `shellcheck` — optional, for contributors
 
-`scripts/install` (plan only by default, or `--apply` to install after
-confirmation) sets these up via your package manager. Run `make doctor` (or
-`scripts/doctor`) at any time — it is
-**read-only** and reports what is present, missing, and whether permissions are
-correct.
+`scripts/install` first performs a complete read-only prerequisite check. With
+no flag it prints the plan only; with `--apply` it installs missing tools and
+the OpenClaw package via your package manager after confirmation. It does not
+start background services or register them with launchd/systemd. Run `make
+doctor` (or `scripts/doctor`) at any time — it is **read-only** and reports
+what is present, missing, and whether permissions are correct.
 
 ## Quick start
 
@@ -162,7 +165,7 @@ correct.
 
 For a complete, plain-language walkthrough—including the commands an automated
 installer should run and the actions it must never automate—start with
-[`docs/SELF-HOSTING.md`](docs/SELF-HOSTING.md).
+[`docs/MANUAL-STEP-INSTALLATION.md`](docs/MANUAL-STEP-INSTALLATION.md).
 
 1. **Install prerequisites** for your OS: `scripts/install` (plan only) then
    `scripts/install --apply` — or follow [`docs/INSTALL.md`](docs/INSTALL.md).
@@ -172,6 +175,7 @@ installer should run and the actions it must never automate—start with
    and initializes the work-memory DB. Then edit `stack.conf` (and
    `secrets.map`) — see [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 4. **Start Vault:** `make vault-start` in a dedicated terminal (foreground).
+   If you need to stop it from another terminal, run `make vault-stop`.
 5. **Initialize Vault yourself.** `scripts/vault-bootstrap init` prints the
    exact `vault operator init`/`unseal` commands for *you* to run; record the
    recovery material in external custody. The stack never views or stores
@@ -205,8 +209,7 @@ Day-to-day commands and troubleshooting live in
 ├── SECURITY.md                   How to report a vulnerability.
 ├── CHANGELOG.md                  Release notes / roadmap.
 ├── VERSION                       Current version (0.1.0).
-├── Makefile                      Thin wrappers: doctor, vault-start, backup, restore, uninstall, check, test, clean.
-├── .gitlab-ci.yml                CI/CD pipeline (lint, tests, secret scan, package, tag-gated release).
+├── Makefile                      Thin wrappers: doctor, vault-start, vault-stop, backup, restore, uninstall, check, test, clean.
 ├── .gitignore / .editorconfig    Repo hygiene (secrets & state never tracked).
 ├── config/
 │   ├── stack.conf.example        Non-secret stack settings (copy & edit).
@@ -227,6 +230,7 @@ Day-to-day commands and troubleshooting live in
 │   ├── vault-bootstrap           Guide Vault init; write policies/roles; revoke root.
 │   ├── doctor                    Read-only preflight checks (no changes).
 │   ├── vault-start               Foreground, loopback-only Vault server.
+│   ├── vault-stop                Stop the foreground Vault and free its port.
 │   ├── work-session              Foreground launcher (owns Vault + loopback gateway/TUI).
 │   ├── backup                    age-encrypted Vault snapshot backup (Daily/Weekly).
 │   ├── restore                   Inspect/restore a backup (read-only by default).
@@ -236,7 +240,7 @@ Day-to-day commands and troubleshooting live in
 │   ├── release                   Version helper (VERSION + CHANGELOG only; never runs git).
 │   └── lib/common.sh             Shared, Bash-3.2-safe helpers.
 ├── tests/                        Dependency-light suite (throwaway HOME; never real HOME/creds).
-│   ├── run.sh lib.sh             Runner + assertion helpers.
+│   ├── run.sh lib.sh             Test runner + assertion helpers.
 │   └── cases/                    Focused cases (syntax, dry-run, render, path-safety, retention, …).
 ├── docker/
 │   └── Dockerfile.ci             Ubuntu test image (Linux only; macOS runs natively — see docs/CI-CD.md).
@@ -253,8 +257,9 @@ Day-to-day commands and troubleshooting live in
 ## What this project deliberately does **not** do
 
 - It does not install packages without an explicit `--apply` (and a typed
-  confirmation), and never by piping a download into a shell. It does not start
-  background services or initialize git for you.
+  confirmation), and never by piping a download into a shell. It installs
+  missing supported prerequisites, but does not start background services or
+  initialize git for you.
 - It does not view, store, or transmit your unseal shares, recovery keys, root
   token, API keys, or private `age` identity.
 - It does not open any non-loopback listener or add TLS-less remote endpoints.
@@ -273,15 +278,11 @@ scripts/ci-local native    # run the native-host checks (lint + tests) as CI doe
 scripts/ci-local build && scripts/ci-local ubuntu   # explicit Ubuntu-in-Docker run
 ```
 
-CI runs on GitLab ([`.gitlab-ci.yml`](.gitlab-ci.yml)): shellcheck lint, the
-**Ubuntu** tests in a container, a self-contained **secret scan**, version
-verification, packaging, and — **only on a `vX.Y.Z` tag, after every gate
-passes** — the release artifact and checksums. **macOS is tested on a native
-GitLab shell runner tagged `macos`** (and locally via `scripts/ci-local
-native`): Docker cannot run macOS, so there is no macOS image and none is faked.
-See [`docs/CI-CD.md`](docs/CI-CD.md) and [`docs/VERSIONING.md`](docs/VERSIONING.md).
-Use [`docs/GITLAB-SETUP.md`](docs/GITLAB-SETUP.md) to create the internal GitLab
-project and register its Docker/Ubuntu and native macOS runners.
+Run the same checks locally with `make test`, `make check`, and
+[`scripts/ci-local`](scripts/ci-local). A sample CI configuration is included
+for providers that support shell checks, Ubuntu containers, secret scanning,
+packaging, and tag-gated releases. See [`docs/CI-CD.md`](docs/CI-CD.md) and
+[`docs/VERSIONING.md`](docs/VERSIONING.md).
 
 ## Security & support
 

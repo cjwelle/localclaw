@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Friendly command entry point for LocalClaw.
+set -uo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+usage() {
+  cat <<EOF
+Usage: localclaw <command> [options]
+
+Commands: setup, install, bootstrap, doctor, update, credentials, backup verify,
+          restore, vault-start, vault-stop, vault-bootstrap, work-session,
+          uninstall.
+
+Guided setup:
+  localclaw setup                 Install, update-check, bootstrap, doctor, test, E2E
+  localclaw setup --apply-update  Also apply the latest canonical release tag
+  localclaw setup --skip-tests    Skip the regression suite
+  localclaw setup --skip-e2e      Skip the end-to-end lifecycle test
+
+Run 'localclaw credentials --help' for password-manager setup.
+EOF
+}
+
+setup() {
+  local apply_update=0 skip_tests=0 skip_e2e=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --apply-update) apply_update=1 ;;
+      --skip-tests) skip_tests=1 ;;
+      --skip-e2e) skip_e2e=1 ;;
+      -h|--help) usage; return 0 ;;
+      *) printf 'Unknown setup option: %s\n' "$1" >&2; return 2 ;;
+    esac
+    shift
+  done
+
+  printf '%s\n' '== LocalClaw guided setup ==' >&2
+  printf '%s\n' '[1/6] Checking and installing prerequisites (permission required)...' >&2
+  "${ROOT}/scripts/install" --apply || return $?
+
+  printf '%s\n' '[2/6] Checking for a canonical release update...' >&2
+  "${ROOT}/scripts/update" --check || return $?
+  if [ "${apply_update}" -eq 1 ]; then
+    printf '%s\n' '[3/6] Applying the latest canonical release update...' >&2
+    "${ROOT}/scripts/update" --latest --allow-no-backup || return $?
+  else
+    printf '%s\n' '[3/6] No release update applied. Use --apply-update after reviewing the update check.' >&2
+  fi
+
+  printf '%s\n' '[4/6] Bootstrapping LocalClaw configuration and state...' >&2
+  "${ROOT}/scripts/bootstrap" || return $?
+  printf '%s\n' '[5/6] Running the read-only doctor...' >&2
+  "${ROOT}/scripts/doctor" || return $?
+
+  if [ "${skip_tests}" -eq 0 ]; then
+    printf '%s\n' '[6/6] Running the regression test suite...' >&2
+    HOME="${HOME:-}" bash "${ROOT}/tests/run.sh" || return $?
+  else
+    printf '%s\n' '[6/6] Regression suite skipped by request.' >&2
+  fi
+  if [ "${skip_e2e}" -eq 0 ]; then
+    printf '%s\n' 'Running the disposable end-to-end lifecycle test...' >&2
+    bash "${ROOT}/tests/e2e/run.sh" || return $?
+  else
+    printf '%s\n' 'End-to-end test skipped by request.' >&2
+  fi
+  printf '%s\n' 'LocalClaw setup completed.' >&2
+}
+case "${1:-}" in
+  setup) shift; setup "$@" ;;
+  install|doctor|update|credentials|bootstrap|vault-start|vault-stop|vault-bootstrap|work-session|restore|uninstall)
+    command="${ROOT}/scripts/${1}"; shift; exec "${command}" "$@" ;;
+  backup)
+    shift
+    case "${1:-}" in
+      verify) shift; exec "${ROOT}/scripts/credentials" backup-verify "$@" ;;
+      *) exec "${ROOT}/scripts/backup" "$@" ;;
+    esac ;;
+  ''|-h|--help)
+    usage
+    [ "${1:-}" = '' ] && exit 2 || exit 0 ;;
+  *) printf 'Unknown localclaw command: %s\n' "$1" >&2; exit 2 ;;
+esac

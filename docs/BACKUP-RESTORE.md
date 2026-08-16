@@ -8,7 +8,7 @@
 
 The encrypted backup recipient is public and stays in local configuration. The
 private age identity is recovery material and should live in one password
-manager. `osls backup verify` temporarily retrieves that identity, verifies the
+manager. `localclaw backup verify` temporarily retrieves that identity, verifies the
 archive with the existing read-only restore verifier, then removes the
 temporary file. It does not restore Vault or replace configuration.
 
@@ -28,8 +28,8 @@ Before configuring this workflow, confirm all of the following:
   The workflow cannot bypass provider authentication, account recovery, or
   organization policies.
 - `age`, `age-keygen`, `tar`, `shasum` or `sha256sum`, and the local `vault`
-  CLI installed. Run `./osls doctor` and fix required failures first.
-- This repository bootstrapped with `./osls bootstrap`, so the owner-only
+  CLI installed. Run `./localclaw doctor` and fix required failures first.
+- This repository bootstrapped with `./localclaw bootstrap`, so the owner-only
   `stack.conf` exists and can be updated. Do not configure this from a shared
   or world-writable account.
 - One existing age key pair: the private identity stored in the provider, and
@@ -50,7 +50,7 @@ the provider CLI already has a valid local session.
 ### 1. Create one secure record
 
 Create a secure note in exactly one provider and paste the complete age private
-identity into its Notes/secure-text body. Use a clear name such as `OSLS backup
+identity into its Notes/secure-text body. Use a clear name such as `LocalClaw backup
 identity`. Do not put the identity in Git, `stack.conf`, chat, or a normal text
 file. Keep Vault root/unseal material in separate records.
 
@@ -65,13 +65,36 @@ command -v op       # 1Password
 command -v lpass    # LastPass
 ```
 
+Sample login flows:
+
+```sh
+# Bitwarden
+bw login you@example.com
+export BW_SESSION="$(bw unlock --raw)"
+bw status
+
+# 1Password
+op account add --address my.1password.com --email you@example.com
+op read "op://Private/LocalClaw-backup-identity/notes"
+
+# LastPass
+lpass login you@example.com
+lpass status
+```
+
+Pick one provider, log into that provider first, and then run only the
+matching `./localclaw credentials configure --provider ...` command for that
+same provider. The login step authenticates the provider CLI; the configure
+step stores the provider-specific reference to the secure note that holds the
+age identity.
+
 Use only one of these configuration commands. The reference is not the secret;
 it is the provider-specific pointer to the secure note.
 
 ```sh
-./osls credentials configure --provider bitwarden --ref 'OSLS backup identity'
-./osls credentials configure --provider 1password --ref 'op://Private/OSLS-backup-identity/notes'
-./osls credentials configure --provider lastpass --ref 'OSLS backup identity'
+./localclaw credentials configure --provider bitwarden --ref 'LocalClaw backup identity'
+./localclaw credentials configure --provider 1password --ref 'op://Private/LocalClaw-backup-identity/notes'
+./localclaw credentials configure --provider lastpass --ref 'LocalClaw backup identity'
 ```
 
 The command writes only `CREDENTIAL_PROVIDER` and `BACKUP_IDENTITY_REF` to
@@ -80,8 +103,8 @@ the owner-only local config. It never writes the private identity there.
 ### 3. Verify a backup
 
 ```sh
-./osls credentials status
-./osls backup verify /absolute/path/to/backup.tar.gz.age
+./localclaw credentials status
+./localclaw backup verify /absolute/path/to/backup.tar.gz.age
 ```
 
 Bitwarden and LastPass may prompt for their master password and MFA through
@@ -96,7 +119,7 @@ requires the configured unseal threshold, and the operator must enter those
 shares manually during `scripts/work-session` or the documented bootstrap
 procedure.
 
-> New operators: start with [`SELF-HOSTING.md`](SELF-HOSTING.md), then return
+> New operators: start with [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md), then return
 > here for the detailed age identity, archive, verification, and restore steps.
 
 Backups are **optional** and **off by default**. When enabled, the stack takes a

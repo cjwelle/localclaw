@@ -2,117 +2,54 @@
 
 The stack is a small set of cooperating parts on a single machine. This page
 describes the components, the session lifecycle, the secret-injection path, and
-the backup flow, with Mermaid diagrams.
+the backup flow using renderer-compatible Markdown.
 
 ## Components
 
-```mermaid
-flowchart TB
-    subgraph Machine["Your machine (full-disk encrypted)"]
-        direction TB
-        Operator([Operator])
+| Area | Contents | Relationship |
+| --- | --- | --- |
+| Repository | Configuration templates, Vault policies, SQL schema, scripts, and workspace templates. | Contains no runtime secrets or state. |
+| XDG config directory | `stack.conf`, rendered Vault/OpenClaw configuration, `secrets.map`, and the public age recipient. | Owner-only configuration used to start a session. |
+| XDG state directory | Vault Raft data, Vault runtime home, work-memory SQLite database, and temporary logs. | Owner-only runtime state; never committed. |
+| Local Vault | Loopback listener on `127.0.0.1`; TLS is disabled only because it never leaves the machine. | Stores secrets and issues short-lived session tokens. |
+| OpenClaw gateway/TUI | Foreground, loopback-only process. | Receives mapped secrets through its environment. |
+| `BACKUP_DIR` | Age-encrypted ciphertext archives only. | Receives optional Vault snapshots after encryption. |
+| External secret manager | Unseal shares, root token, and private age identity. | Holds recovery material outside the repository and state directory. |
 
-        subgraph Repo["Repository (no secrets, no state)"]
-            Templates["config/*.example / *.template"]
-            Policies["policies/*.hcl"]
-            Schema["sql/schema.sql"]
-            Scripts["scripts/ (work-session, backup, vault-start, doctor, lib)"]
-            WsTmpl["workspace-template/"]
-        end
-
-        subgraph Config["XDG config dir (700)"]
-            StackConf["stack.conf"]
-            VaultHcl["vault.hcl (rendered)"]
-            OpenclawJson["openclaw.json (rendered)"]
-            SecretsMap["secrets.map (names only)"]
-            AgeRecip["age recipient (public)"]
-        end
-
-        subgraph State["XDG state dir (700)"]
-            Raft[("Vault Raft data")]
-            RuntimeHome["vault runtime HOME"]
-            MemDb[("work_memory.sqlite")]
-            Logs["temp logs"]
-        end
-
-        Vault["Local Vault<br/>127.0.0.1:18200 (loopback, TLS off)"]
-        Gateway["OpenClaw gateway + TUI<br/>127.0.0.1 (loopback)"]
-    end
-
-    BackupDir[("BACKUP_DIR<br/>age ciphertext only")]
-    Custody[["External secret manager<br/>(unseal shares, root token,<br/>private age identity)"]]
-
-    Operator -->|hidden prompts| Vault
-    Operator -->|custody| Custody
-    Templates -.render.-> VaultHcl
-    Policies -.applied by operator.-> Vault
-    Schema -.init.-> MemDb
-    Vault --- Raft
-    Vault --- RuntimeHome
-    SecretsMap -.maps env→path.-> Gateway
-    Vault -->|inject to env only| Gateway
-    Gateway -.summaries only.-> MemDb
-    Vault -->|snapshot| BackupDir
-    AgeRecip -.encrypt to.-> BackupDir
-    Custody -.decrypt.-> BackupDir
-```
+The operator supplies hidden prompts, applies policies, and controls external
+secret custody. Vault injects secrets into the gateway environment only; the
+gateway writes summaries, not secret values, to the memory database.
 
 ## Session lifecycle
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Op as Operator
-    participant L as work-session (foreground)
-    participant V as Local Vault (loopback)
-    participant G as OpenClaw gateway/TUI
-    participant B as BACKUP_DIR
+The lifecycle is intentionally shown as a normal Markdown table instead of a
+sequence diagram. This keeps the section readable in Markdown viewers that do
+not support Mermaid sequence diagrams.
 
-    Op->>L: start session
-    L->>L: refuse conflicting service/listener
-    L->>V: start Vault as owned child
-    Op-->>V: unseal shares + admin password (hidden)
-    L->>V: mint short-lived token (agent policy)
-    V-->>L: session token (env only)
-    L->>V: read mapped secrets (secrets.map)
-    V-->>L: secret values
-    L->>G: inject secrets into gateway ENV only
-    L->>G: open TUI (loopback)
-    Op->>G: do work
-    Op->>G: /exit (or Ctrl-D / double Ctrl-C)
-    G-->>L: TUI closed
-    L->>G: stop gateway
-    L->>V: (optional) snapshot via backup token
-    L->>B: write age-encrypted archive
-    L->>V: revoke session + backup tokens
-    L->>V: stop Vault
-    L->>L: remove temp logs
-    Note over Op,B: Sleep/interrupt/power-loss ends the session;<br/>a forced kill can bypass cleanup.
-```
+| Phase | Owner | Action | Security/lifecycle result |
+| --- | --- | --- | --- |
+| Start | Operator → `work-session` | Start the foreground session. | Conflicting listeners and services are refused. |
+| Vault startup | `work-session` | Start the local Vault as an owned, loopback-only child. | Vault lifetime is tied to the session. |
+| Unlock | Operator → Vault | Enter unseal shares and the admin password through hidden prompts. | Sensitive values are not written to the repository or logs. |
+| Session credentials | `work-session` → Vault | Mint short-lived agent and backup tokens. | Tokens use separate least-privilege policies and exist only for the session. |
+| Secret injection | `work-session` → Vault → gateway | Read paths listed in `secrets.map` and inject values into the gateway environment. | Secret values are kept out of files, logs, and the memory database. |
+| Work | Operator → OpenClaw | Open the loopback-only gateway/TUI and do work. | The gateway runs in the foreground. |
+| Exit | Operator → TUI | Exit with `/exit`, Ctrl-D, or double Ctrl-C. | The launcher begins shutdown and cleanup. |
+| Backup | `work-session` → Vault → `BACKUP_DIR` | Optionally create a snapshot with the backup token and write an age-encrypted archive. | Only ciphertext leaves the live Vault; backup failure does not prevent shutdown. |
+| Shutdown | `work-session` | Stop the gateway, revoke session and backup tokens, stop Vault, and remove temporary logs. | Owned child processes are cleaned up. |
+
+Sleep, interruption, power loss, or a forced kill can bypass cleanup. Run the
+doctor and backup verification checks after recovering from an unclean exit.
 
 ## Secret-injection path (least privilege)
 
-```mermaid
-flowchart LR
-    subgraph VaultKV["Vault KV v2 (mount: local)"]
-        AI["local/ai/*"]
-        Shared["local/shared/*"]
-        AgentP["local/agent/* (scratch)"]
-    end
-
-    Token["Session token<br/>policy: agent.hcl"]
-    Env["Gateway process ENV<br/>(foreground only)"]
-    Disk[["Disk / logs / DB"]]
-
-    AI -->|read| Token
-    Shared -->|read| Token
-    Token <-->|read/write| AgentP
-    Token -->|inject| Env
-    Env -. never written .-> Disk
-
-    classDef forbid stroke-dasharray: 4 4;
-    class Disk forbid;
-```
+| Step | Path | Allowed operation |
+| --- | --- | --- |
+| 1 | `local/ai/*` | The session token reads AI/service secrets allowed by policy. |
+| 2 | `local/shared/*` | The session token reads shared values allowed by policy. |
+| 3 | `local/agent/*` | The agent token may read/write its own small scratch values. |
+| 4 | Gateway environment | `work-session` injects mapped values into the live process only. |
+| 5 | Disk, logs, and database | Secret values are never written here. |
 
 The `agent` policy can read AI/service and shared secrets and keep small values
 under its own prefix — nothing else. Secrets flow into the live process
@@ -120,19 +57,16 @@ environment and are **never** persisted to disk, logs, or the memory database.
 
 ## Backup flow
 
-```mermaid
-flowchart TD
-    Start(["Interactive session exits cleanly"]) --> First{"First success<br/>today?"}
-    First -- no --> Reuse["Reuse verified archive"] --> Done
-    First -- yes --> Snap["Snapshot via backup token<br/>(cannot read secrets)"]
-    Snap --> Pkg["Package snapshot + non-secret config + policies"]
-    Pkg --> Enc["Encrypt to age public recipient"]
-    Enc --> Verify{"Decrypts with<br/>identity?"}
-    Verify -- no --> Warn["Warn; continue cleanup"] --> Done
-    Verify -- yes --> Write["Write CIPHERTEXT ONLY to BACKUP_DIR"]
-    Write --> Prune["Prune: keep newest N daily / weekly"]
-    Prune --> Done(["Revoke backup token; stop Vault"])
-```
+| Step | Action | Result |
+| --- | --- | --- |
+| 1 | Session exits cleanly. | Backup processing begins; startup failures do not produce a backup. |
+| 2 | Check for the first successful backup of the day. | Reuse the verified archive when one already exists. |
+| 3 | Take a Vault snapshot with the backup token. | The backup token cannot read KV secrets. |
+| 4 | Package the snapshot with non-secret configuration and policies. | A recovery package is prepared. |
+| 5 | Encrypt the package to the public age recipient. | The private identity remains in external custody. |
+| 6 | Verify decryption. | Warn and continue cleanup if verification fails. |
+| 7 | Write ciphertext to `BACKUP_DIR`. | No plaintext backup leaves the live Vault. |
+| 8 | Prune only matching archives and revoke the backup token. | Newest recovery points are retained and Vault stops. |
 
 Startup failures never produce a backup. Only files matching the encrypted-backup
 naming pattern are ever pruned, and the newest recovery point is never removed.

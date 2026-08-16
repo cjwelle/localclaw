@@ -1,6 +1,6 @@
 # Configuration
 
-> New installations should follow [`SELF-HOSTING.md`](SELF-HOSTING.md) first.
+> New installations should follow [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md) first.
 > This file is the reference for each non-secret setting and rendered file.
 
 All configuration is **non-secret** and lives outside the repository, under your

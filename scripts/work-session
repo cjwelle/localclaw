@@ -183,7 +183,7 @@ wait_for_port() {
 # E2E-only readiness barrier. tests/e2e/run.sh's Vault wrapper opens the port
 # immediately but configures auth/policies/the admin user asynchronously
 # afterward; wait for its readiness marker file so we never log in before
-# that setup has finished. Gated on OSLS_E2E=1, which is never set in a
+# that setup has finished. Gated on LOCALCLAW_E2E=1, which is never set in a
 # production run (see read_admin_password in scripts/lib/common.sh).
 # ---------------------------------------------------------------------------
 wait_for_e2e_ready() {
@@ -229,7 +229,7 @@ validate_secret_mapping() {
   printf '%s' "${env_name}" | grep -Eq '^[A-Z_][A-Z0-9_]*$' \
     || fail "Invalid env var name in secrets.map: ${env_name}"
   case "${env_name}" in
-    PATH|HOME|SHELL|ENV|BASH_ENV|VAULT_*|LOCAL_VAULT_TOKEN|OSLS_*|LD_*|DYLD_*|NODE_OPTIONS)
+    PATH|HOME|SHELL|ENV|BASH_ENV|VAULT_*|LOCAL_VAULT_TOKEN|LOCALCLAW_*|LD_*|DYLD_*|NODE_OPTIONS)
       fail "Reserved environment variable in secrets.map: ${env_name}" ;;
   esac
   printf '%s' "${kv_path}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_./-]*$' \
@@ -258,8 +258,8 @@ if [ "${DRY_RUN}" -eq 1 ]; then
   [ -x "${BACKUP_SCRIPT}" ] || warn "not executable: ${BACKUP_SCRIPT}"
 
   # Rendered config present?
-  [ -r "${OSLS_VAULT_HCL}" ] || warn "vault.hcl not rendered (run scripts/bootstrap): ${OSLS_VAULT_HCL}"
-  [ -r "${OSLS_OPENCLAW_JSON}" ] || warn "openclaw.json not rendered (run scripts/bootstrap)"
+  [ -r "${LOCALCLAW_VAULT_HCL}" ] || warn "vault.hcl not rendered (run scripts/bootstrap): ${LOCALCLAW_VAULT_HCL}"
+  [ -r "${LOCALCLAW_OPENCLAW_JSON}" ] || warn "openclaw.json not rendered (run scripts/bootstrap)"
 
   # Ports must be free.
   if port_is_listening "${VAULT_PORT}"; then fail "Port ${VAULT_PORT} (Vault) is already in use."; fi
@@ -267,7 +267,7 @@ if [ "${DRY_RUN}" -eq 1 ]; then
   ok "Ports ${VAULT_PORT} and ${OPENCLAW_PORT} are free."
 
   # secrets.map parses (names/paths only).
-  if [ -r "${OSLS_SECRETS_MAP}" ]; then
+  if [ -r "${LOCALCLAW_SECRETS_MAP}" ]; then
     n=0
     while IFS= read -r line || [ -n "${line}" ]; do
       case "${line}" in ''|'#'*) continue ;; esac
@@ -278,7 +278,7 @@ EOF
         || fail "Malformed secrets.map line (need: ENV path field): ${line}"
       validate_secret_mapping "${env_name}" "${kv_path}" "${kv_field}"
       n=$((n + 1))
-    done < "${OSLS_SECRETS_MAP}"
+    done < "${LOCALCLAW_SECRETS_MAP}"
     ok "secrets.map parses (${n} mapping(s))."
   else
     warn "secrets.map not present; the gateway would get the agent token but no provider keys."
@@ -312,15 +312,15 @@ have jq                || fail "jq not found. Run scripts/install."
 have "${OPENCLAW_BIN}" || fail "openclaw not found: ${OPENCLAW_BIN}. See docs/INSTALL.md (install the extended-stable channel)."
 [ -x "${VAULT_START}" ]   || fail "Missing/inaccessible: ${VAULT_START}"
 [ -x "${BACKUP_SCRIPT}" ] || fail "Missing/inaccessible: ${BACKUP_SCRIPT}"
-[ -r "${OSLS_VAULT_HCL}" ] || fail "Rendered vault.hcl not found. Run scripts/bootstrap first."
+[ -r "${LOCALCLAW_VAULT_HCL}" ] || fail "Rendered vault.hcl not found. Run scripts/bootstrap first."
 
 # Refuse conflicting listeners (another Vault or gateway must not be running).
 port_is_listening "${VAULT_PORT}"   && fail "Port ${VAULT_PORT} is already in use. Stop the existing local Vault first."
 port_is_listening "${OPENCLAW_PORT}" && fail "Port ${OPENCLAW_PORT} is already in use. Stop the existing OpenClaw gateway first."
 
 umask 077
-ensure_private_dir "${OSLS_STATE_DIR}"
-ensure_private_dir "${OSLS_LOG_DIR}"
+ensure_private_dir "${LOCALCLAW_STATE_DIR}"
+ensure_private_dir "${LOCALCLAW_LOG_DIR}"
 session_tmp="$(make_secure_tmpdir openclaw-work-session)"
 
 trap cleanup EXIT
@@ -337,17 +337,17 @@ info "Starting isolated local Vault (loopback) as an owned child..."
 "${VAULT_START}" >"${session_tmp}/vault.log" 2>&1 &
 vault_pid=$!
 if ! wait_for_port "${VAULT_PORT}" "${vault_pid}"; then
-  if [ "${OSLS_E2E:-}" = "1" ] && [ -r "${session_tmp}/vault.log" ]; then
+  if [ "${LOCALCLAW_E2E:-}" = "1" ] && [ -r "${session_tmp}/vault.log" ]; then
     tail -40 "${session_tmp}/vault.log" >&2 || true
   fi
   fail "Vault failed to start (see session log; removed on exit)."
 fi
-if [ "${OSLS_E2E:-}" = "1" ]; then
+if [ "${LOCALCLAW_E2E:-}" = "1" ]; then
   # Test-only: the E2E Vault wrapper finishes configuring auth/policies/the
   # admin user after the port opens; wait for its readiness marker before
-  # proceeding. Never taken in production (OSLS_E2E is never set there).
-  [ -n "${OSLS_E2E_VAULT_READY_FILE:-}" ] || fail "OSLS_E2E=1 requires OSLS_E2E_VAULT_READY_FILE to be set."
-  wait_for_e2e_ready "${OSLS_E2E_VAULT_READY_FILE}" "${vault_pid}" \
+  # proceeding. Never taken in production (LOCALCLAW_E2E is never set there).
+  [ -n "${LOCALCLAW_E2E_VAULT_READY_FILE:-}" ] || fail "LOCALCLAW_E2E=1 requires LOCALCLAW_E2E_VAULT_READY_FILE to be set."
+  wait_for_e2e_ready "${LOCALCLAW_E2E_VAULT_READY_FILE}" "${vault_pid}" \
     || fail "E2E Vault setup readiness file not observed."
 fi
 vault_is_initialized || fail "Vault is not initialized. Run scripts/vault-bootstrap init first."
@@ -378,12 +378,12 @@ esac
 ok "Vault is unsealed."
 
 # --- 3) Admin login (hidden password on stdin; -no-store) -------------------
-# read_admin_password is interactive (hidden prompt) unless OSLS_E2E=1 is
+# read_admin_password is interactive (hidden prompt) unless LOCALCLAW_E2E=1 is
 # explicitly set, in which case it is a test-only noninteractive path used by
 # tests/e2e/run.sh (see scripts/lib/common.sh).
 admin_pw="$(read_admin_password "Password for admin user '${VAULT_ADMIN_USER}' (hidden)")"
 [ -n "${admin_pw}" ] || fail "No admin password entered."
-if [ "${OSLS_E2E:-}" = "1" ]; then
+if [ "${LOCALCLAW_E2E:-}" = "1" ]; then
   # Test-only: authenticate via an explicit write to the userpass login
   # endpoint instead of the `vault login` CLI method. Same auth backend and
   # credentials; only the CLI surface differs, and the JSON response shape
@@ -424,7 +424,7 @@ ok "Minted dedicated agent-session and backup-session tokens (least privilege)."
 # or argv. We build a single newline-separated NAME=VALUE list (values are
 # validated to contain no newline) to feed the child's environment.
 gw_env_pairs=""
-if [ -r "${OSLS_SECRETS_MAP}" ]; then
+if [ -r "${LOCALCLAW_SECRETS_MAP}" ]; then
   while IFS= read -r line || [ -n "${line}" ]; do
     case "${line}" in ''|'#'*) continue ;; esac
     IFS=' ' read -r env_name kv_path kv_field extra <<EOF
@@ -443,7 +443,7 @@ EOF
     gw_env_pairs="${gw_env_pairs}${env_name}=${val}
 "
     unset val
-  done < "${OSLS_SECRETS_MAP}"
+  done < "${LOCALCLAW_SECRETS_MAP}"
 fi
 # The role tokens are orphan tokens, so revoke the temporary parent login now.
 LOCAL_VAULT_TOKEN="${admin_token}" vault_local token revoke -self >/dev/null 2>&1 \
@@ -458,8 +458,8 @@ info "Starting the foreground OpenClaw gateway (loopback only)..."
 # exported below leaves with that subshell when it execs the gateway.
 (
   export LOCAL_VAULT_TOKEN="${agent_token}"
-  export OPENCLAW_CONFIG_PATH="${OSLS_OPENCLAW_JSON}"
-  export OPENCLAW_STATE_DIR="${OSLS_OPENCLAW_STATE_DIR}"
+  export OPENCLAW_CONFIG_PATH="${LOCALCLAW_OPENCLAW_JSON}"
+  export OPENCLAW_STATE_DIR="${LOCALCLAW_OPENCLAW_STATE_DIR}"
   # A here-doc (not a pipe) keeps the loop in this subshell so exports persist.
   while IFS= read -r _pair; do
     [ -n "${_pair}" ] || continue
@@ -482,8 +482,8 @@ ok "Gateway is up on 127.0.0.1:${OPENCLAW_PORT}."
 # surface is exposed; there is no messaging channel.
 session_ready=1
 info "Opening the OpenClaw terminal UI. Exit it (/exit, Ctrl-D, or double Ctrl-C) to end the session."
-OPENCLAW_CONFIG_PATH="${OSLS_OPENCLAW_JSON}" \
-OPENCLAW_STATE_DIR="${OSLS_OPENCLAW_STATE_DIR}" \
+OPENCLAW_CONFIG_PATH="${LOCALCLAW_OPENCLAW_JSON}" \
+OPENCLAW_STATE_DIR="${LOCALCLAW_OPENCLAW_STATE_DIR}" \
   "${OPENCLAW_BIN}" --profile "${OPENCLAW_PROFILE}" tui </dev/tty &
 tui_pid=$!
 wait "${tui_pid}"

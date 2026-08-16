@@ -17,8 +17,8 @@ Each item lists what to decide, where it is referenced, and how to record it.
 
 ## 2. Namespace / project location
 
-- [ ] Decide the canonical repository namespace (e.g. GitLab group/subgroup or
-  GitHub org) and the project slug.
+- [ ] Decide whether the project needs an organization namespace and record the
+  canonical project slug.
 - **Why it matters:** links and clone instructions depend on it.
 - **Where referenced:** `SECURITY.md`, `CHANGELOG.md` link refs (`about:blank`
   placeholders).

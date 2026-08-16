@@ -9,7 +9,7 @@
 #     NEVER invoking git (no commit/tag/push, no auto-increment).
 #
 # `prepare` mutations are contained in a sandbox COPY of the release files via
-# OSLS_RELEASE_ROOT, so the real repo is never modified by this test.
+# LOCALCLAW_RELEASE_ROOT, so the real repo is never modified by this test.
 . "${LIB_SH}"
 
 SCRIPTS="$(scripts_dir)"
@@ -50,7 +50,7 @@ cp "${REPO_DIR}/VERSION" "${ROOT}/VERSION"
 cp "${REPO_DIR}/CHANGELOG.md" "${ROOT}/CHANGELOG.md"
 
 assert_ok "prepare 0.2.0 exits 0" \
-  env OSLS_RELEASE_ROOT="${ROOT}" bash "${REL}" prepare 0.2.0 --date 2026-09-01
+  env LOCALCLAW_RELEASE_ROOT="${ROOT}" bash "${REL}" prepare 0.2.0 --date 2026-09-01
 new_ver="$(cat "${ROOT}/VERSION" | tr -d '[:space:]')"
 assert_eq "prepare updated VERSION to 0.2.0" "${new_ver}" "0.2.0"
 
@@ -66,9 +66,9 @@ assert_eq "real repo VERSION untouched" "${still}" "${VERSION}"
 cp "${REPO_DIR}/VERSION" "${ROOT}/VERSION"
 cp "${REPO_DIR}/CHANGELOG.md" "${ROOT}/CHANGELOG.md"
 assert_fail "prepare rejects a non-SemVer version" \
-  env OSLS_RELEASE_ROOT="${ROOT}" bash "${REL}" prepare "not.a.version"
+  env LOCALCLAW_RELEASE_ROOT="${ROOT}" bash "${REL}" prepare "not.a.version"
 assert_fail "prepare rejects a lower version than current" \
-  env OSLS_RELEASE_ROOT="${ROOT}" bash "${REL}" prepare "0.0.9"
+  env LOCALCLAW_RELEASE_ROOT="${ROOT}" bash "${REL}" prepare "0.0.9"
 unchanged="$(cat "${ROOT}/VERSION" | tr -d '[:space:]')"
 assert_eq "sandbox VERSION unchanged after rejected prepare" "${unchanged}" "${VERSION}"
 

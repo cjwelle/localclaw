@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# vault-stop - stop the isolated local Vault server if it is listening.
+#
+# This is the inverse of scripts/vault-start. It looks up the process bound to
+# the configured Vault port, refuses to touch an unrelated listener, sends a
+# polite termination signal, then confirms the port is free. No secrets are
+# read or written.
+#
+# Usage: scripts/vault-stop
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+. "${SCRIPT_DIR}/lib/common.sh"
+load_stack_config
+
+have "${VAULT_BIN}" || fail "vault binary not found: ${VAULT_BIN}. Run scripts/install."
+
+vault_pids() {
+  if have lsof; then
+    lsof -nP -tiTCP:"${VAULT_PORT}" -sTCP:LISTEN 2>/dev/null | sort -u
+    return 0
+  fi
+  if have fuser; then
+    fuser -n tcp "${VAULT_PORT}" 2>/dev/null \
+      | tr '[:space:]' '\n' \
+      | awk '/^[0-9]+$/ { print }' \
+      | sort -u
+    return 0
+  fi
+  fail "Need lsof or fuser to stop the Vault listener safely."
+}
+
+confirm_vault_process() {
+  local pid="$1" args
+  args="$(ps -p "${pid}" -o args= 2>/dev/null || true)"
+  case "${args}" in
+    *"${VAULT_BIN}"*"server"* ) : ;;
+    * ) fail "Refusing to stop pid ${pid}; it does not look like the LocalClaw Vault process." ;;
+  esac
+}
+
+kill_pid_and_wait() {
+  local pid="$1" signal="${2:-TERM}" i
+  kill "-${signal}" "${pid}" 2>/dev/null || return 0
+  for i in $(seq 1 20); do
+    kill -0 "${pid}" 2>/dev/null || return 0
+    sleep 0.2
+  done
+  return 1
+}
+
+if ! port_is_listening "${VAULT_PORT}"; then
+  ok "Vault is already stopped on $(vault_addr)."
+  exit 0
+fi
+
+info "Stopping Vault listening on $(vault_addr)..."
+found=0
+for pid in $(vault_pids); do
+  [ -n "${pid}" ] || continue
+  found=1
+  confirm_vault_process "${pid}"
+  if kill_pid_and_wait "${pid}" TERM; then
+    ok "Sent SIGTERM to Vault pid ${pid}."
+  else
+    warn "Vault pid ${pid} did not exit after SIGTERM; sending SIGKILL."
+    kill_pid_and_wait "${pid}" KILL || true
+  fi
+done
+
+if [ "${found}" -eq 0 ]; then
+  fail "No listener found on $(vault_addr), but the stop check expected Vault to be running."
+fi
+
+if port_is_listening "${VAULT_PORT}"; then
+  fail "Vault is still listening on $(vault_addr) after stop attempts."
+fi
+
+ok "Vault stopped and port ${VAULT_PORT} is free."

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # install - platform-aware prerequisite installer for the local stack.
 #
-# SAFE BY DEFAULT. With no flags this script only PLANS: it detects your OS,
-# checks which prerequisites are already present, and PRINTS the exact package
-# manager commands it would run. It changes nothing until you pass --apply.
+# SAFE BY DEFAULT. With no flags this script only PLANS: it first inventories
+# every prerequisite, then prints the exact package-manager commands it would
+# run. It changes nothing until you pass --apply.
 #
 # It never pipes a network download into a shell (no `curl | sh`). On Debian/
 # Ubuntu it adds HashiCorp's apt repository the documented way (fetch the GPG
@@ -15,7 +15,7 @@
 #   and the selected password-manager CLI,
 #   and (optionally) shellcheck.
 # It then installs OpenClaw's official npm package from the `extended-stable`
-# dist-tag. It does NOT start any service, register a
+# dist-tag when it is missing. It does NOT start any service, register a
 # scheduler, initialize git, or touch your credentials.
 #
 # Usage:
@@ -33,6 +33,13 @@ load_stack_config
 APPLY=0
 PASSWORD_MANAGER="${CREDENTIAL_PROVIDER:-none}"
 PASSWORD_MANAGER_SET=0
+PASSWORD_MANAGER_CONFIGURED=0
+# common.sh initializes CREDENTIAL_PROVIDER=none as a default. That default is
+# not evidence that the operator has made a selection; only an explicit config
+# entry should suppress the first-run prompt.
+if [ -r "${LOCALCLAW_STACK_CONF}" ] && grep -Eq '^[[:space:]]*CREDENTIAL_PROVIDER[[:space:]]*=' "${LOCALCLAW_STACK_CONF}"; then
+  PASSWORD_MANAGER_CONFIGURED=1
+fi
 any=0   # set to 1 whenever a plan step proposes an install
 confirmed=0
 
@@ -72,8 +79,8 @@ case "${PASSWORD_MANAGER}" in
   none|bitwarden|1password|lastpass) : ;;
   *) usage; fail "Unsupported password manager: ${PASSWORD_MANAGER}" ;;
 esac
-if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ -t 0 ]; then
-  printf 'Which password manager should OSLS support? [none/bitwarden/1password/lastpass] (none): ' >&2
+if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ "${PASSWORD_MANAGER_CONFIGURED}" -eq 0 ] && [ -t 0 ]; then
+  printf 'Which password manager should LOCALCLAW support? [none/bitwarden/1password/lastpass] (none): ' >&2
   IFS= read -r answer || answer=""
   [ -n "${answer}" ] && PASSWORD_MANAGER="${answer}"
   case "${PASSWORD_MANAGER}" in
@@ -81,14 +88,119 @@ if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ -t 0 ]; then
     *) fail "Unsupported password manager: ${PASSWORD_MANAGER}" ;;
   esac
 fi
+if [ "${PASSWORD_MANAGER_SET}" -eq 0 ] && [ "${PASSWORD_MANAGER_CONFIGURED}" -eq 1 ]; then
+  info "Using configured password manager: ${PASSWORD_MANAGER}"
+fi
 
 os="$(detect_os)"
 info "Detected operating system: ${os}"
+
+# Bootstrap prerequisites: Homebrew is the macOS package-manager entry point,
+# and Git is needed to obtain/update the repository. Fail before any package
+# manager action so a fresh machine gets a clear next step.
+if [ "${os}" = macos ] && ! have brew; then
+  fail "Homebrew is required before running LocalClaw on macOS. Install it from https://brew.sh/ (review the official instructions), then rerun this command."
+fi
+if ! have git; then
+  fail "Git is required before running LocalClaw. Install it from https://git-scm.com/downloads or, on macOS, install Apple's Command Line Tools with 'xcode-select --install', then rerun this command."
+fi
+
 if [ "${APPLY}" -eq 1 ]; then
   info "Mode: APPLY (commands will run after confirmation)."
 else
   info "Mode: PLAN (no changes will be made). Re-run with --apply to install."
 fi
+
+# Read-only inventory runs before any package-manager command. The complete
+# starting state is visible before an operator approves the apply phase.
+report_prereq() {
+  local label="$1" bin="$2"
+  if have "${bin}"; then
+    ok "${label}: present ($(command -v "${bin}"))"
+  else
+    warn "${label}: MISSING (apply will install it when supported)"
+  fi
+}
+
+bounded_command() {
+  # bounded_command <seconds> <command> [args...]
+  # Avoid a provider CLI hanging the prerequisite scan indefinitely.
+  local seconds="$1"; shift
+  if have perl; then
+    perl -e 'alarm shift; exec @ARGV' "${seconds}" "$@"
+  elif have python3; then
+    python3 - "${seconds}" "$@" <<'PY'
+import subprocess
+import sys
+
+seconds = int(sys.argv[1])
+raise SystemExit(subprocess.call(sys.argv[2:], timeout=seconds))
+PY
+  else
+    return 125
+  fi
+}
+
+report_bitwarden_session() {
+  if ! have bw; then
+    return 0
+  fi
+  local status_json status
+  if ! status_json="$(bounded_command 5 bw status 2>/dev/null)"; then
+    warn "Bitwarden session: status check timed out or failed; run 'bw status' manually"
+    return 0
+  fi
+  status="$(printf '%s' "${status_json}" | sed -n 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  case "${status}" in
+    unlocked) ok "Bitwarden session: logged in and unlocked" ;;
+    locked) warn "Bitwarden session: logged in but locked (run 'bw unlock')" ;;
+    unauthenticated) warn "Bitwarden session: not logged in (run 'bw login')" ;;
+    *) warn "Bitwarden session: unable to determine status; run 'bw status'" ;;
+  esac
+}
+
+check_prerequisites() {
+  local package_manager="apt-get"
+  [ "${os}" = macos ] && package_manager="brew"
+  printf '\n== Prerequisite check (read-only; before installation) ==\n' >&2
+  report_prereq "package manager" "${package_manager}"
+  report_prereq "Vault" vault
+  report_prereq "sqlite3" sqlite3
+  report_prereq "node" node
+  report_prereq "npm" npm
+  report_prereq "jq" jq
+  report_prereq "git" git
+  report_prereq "curl" curl
+  report_prereq "tmux" tmux
+  report_prereq "tar" tar
+  if have shasum || have sha256sum; then
+    ok "checksum tool: present"
+  else
+    warn "checksum tool (shasum/sha256sum): MISSING (apply will install it when supported)"
+  fi
+  if have age && have age-keygen; then
+    ok "age/age-keygen: present"
+  else
+    warn "age/age-keygen: MISSING (apply will install age)"
+  fi
+  report_prereq "OpenClaw" "${OPENCLAW_BIN}"
+  # Always inventory all supported CLIs so a non-interactive run cannot make
+  # an unselected provider look as though it was checked. Only the selected
+  # provider is included in the installation plan below.
+  printf '%s\n' 'Password-manager CLI inventory:' >&2
+  report_prereq "Bitwarden CLI (bw)" bw
+  if [ "${PASSWORD_MANAGER}" = bitwarden ]; then
+    report_bitwarden_session
+  else
+    info "Bitwarden session check skipped (select --password-manager bitwarden to check login state)"
+  fi
+  report_prereq "1Password CLI (op)" op
+  report_prereq "LastPass CLI (lpass)" lpass
+  info "Selected password manager for installation: ${PASSWORD_MANAGER}"
+  info "Prerequisite check complete; no installation occurred during this phase."
+}
+
+check_prerequisites
 
 # A tool is "needed" only if its binary is not already on PATH.
 need_tool() { have "$1" && return 1 || return 0; }
@@ -109,6 +221,104 @@ confirm_apply() {
   warn "About to install software with your system package manager (may require sudo)."
   require_typed_confirmation "INSTALL" "Type INSTALL to proceed"
   confirmed=1
+}
+
+configure_backup_dir() {
+  # Backups are opt-in. Never prompt or write config during plan mode or when
+  # stdin is not an interactive terminal.
+  [ "${APPLY}" -eq 1 ] || return 0
+  [ -t 0 ] || return 0
+  [ -n "${BACKUP_DIR}" ] && return 0
+
+  local answer choice os
+  os="$(detect_os)"
+  printf '\nWhere should encrypted Vault backups be stored?\n' >&2
+  if [ "${os}" = macos ]; then
+    printf '  1) iCloud Drive     (%s)\n' "${HOME}/Library/Mobile Documents/com~apple~CloudDocs/LocalClawBackups" >&2
+    printf '  2) Cloud storage    (%s)\n' "${HOME}/CloudStorage/LocalClawBackups" >&2
+    printf '  3) Local home folder (%s)\n' "${HOME}/localclaw-backups" >&2
+    printf '  4) Custom absolute path\n' >&2
+    printf '  5) Disable backups\n' >&2
+    printf '  6) Set up backups later\n' >&2
+    printf 'Choose [1-6] (6): ' >&2
+    IFS= read -r choice || choice="6"
+    case "${choice}" in
+      1) answer="${HOME}/Library/Mobile Documents/com~apple~CloudDocs/LocalClawBackups" ;;
+      2) answer="${HOME}/CloudStorage/LocalClawBackups" ;;
+      3) answer="${HOME}/localclaw-backups" ;;
+      4) printf 'Custom backup directory (absolute path): ' >&2; IFS= read -r answer || answer="" ;;
+      5) answer="" ;;
+      6|'') answer=""; info "Backup setup deferred. Re-run './scripts/install --apply' later to choose a destination." ;;
+      /*) answer="${choice}" ;;
+      *) fail "Choose a number from 1 to 5; backups remain disabled." ;;
+    esac
+  else
+    printf '  1) Local home folder (%s)\n' "${HOME}/localclaw-backups" >&2
+    printf '  2) Custom absolute path\n' >&2
+    printf '  3) Disable backups\n' >&2
+    printf '  4) Set up backups later\n' >&2
+    printf 'Choose [1-4] (4): ' >&2
+    IFS= read -r choice || choice="4"
+    case "${choice}" in
+      1) answer="${HOME}/localclaw-backups" ;;
+      2) printf 'Custom backup directory (absolute path): ' >&2; IFS= read -r answer || answer="" ;;
+      3) answer="" ;;
+      4|'') answer=""; info "Backup setup deferred. Re-run './scripts/install --apply' later to choose a destination." ;;
+      /*) answer="${choice}" ;;
+      *) fail "Choose a number from 1 to 3; backups remain disabled." ;;
+    esac
+  fi
+  [ -n "${answer}" ] || {
+    info "Encrypted backups remain disabled (BACKUP_DIR is empty)."
+    return 0
+  }
+  case "${answer}" in
+    /*) : ;;
+    *) fail "Backup directory must be an absolute path; backups remain disabled." ;;
+  esac
+  validate_backup_dir "${answer}"
+  ensure_private_dir "${answer}"
+  mkdir -p "${LOCALCLAW_CONFIG_DIR}" || fail "Could not create ${LOCALCLAW_CONFIG_DIR}."
+  chmod 700 "${LOCALCLAW_CONFIG_DIR}" 2>/dev/null || true
+  printf '\n# Encrypted Vault backup destination (configured by scripts/install)\nBACKUP_DIR=%s\n' \
+    "${answer}" >> "${LOCALCLAW_STACK_CONF}" \
+    || fail "Could not save BACKUP_DIR to ${LOCALCLAW_STACK_CONF}."
+  chmod 600 "${LOCALCLAW_STACK_CONF}" 2>/dev/null || true
+  BACKUP_DIR="${answer}"
+  ok "Encrypted backups enabled: ${BACKUP_DIR}"
+}
+
+install_vault_from_tap() {
+  # Homebrew imports every formula in a tap before installing one formula.
+  # Some historical HashiCorp taps contain a broken vagrant.rb that prevents
+  # Vault from being imported. Temporarily move only that unrelated formula
+  # aside for this command, then restore it regardless of the result.
+  local tap_dir backup_dir formula backup status
+  if [ "${APPLY}" -eq 0 ]; then
+    run_step "install vault" brew install hashicorp/tap/vault
+    return $?
+  fi
+  tap_dir="$(brew --repo hashicorp/tap 2>/dev/null || true)"
+  formula="${tap_dir}/Formula/vagrant.rb"
+  if [ -z "${tap_dir}" ] || [ ! -f "${formula}" ]; then
+    run_step "install vault" brew install hashicorp/tap/vault
+    return $?
+  fi
+
+  backup_dir="$(mktemp -d "${TMPDIR:-/tmp}/localclaw-vagrant.XXXXXX")" \
+    || fail "Could not create a temporary backup for the broken HashiCorp formula."
+  backup="${backup_dir}/vagrant.rb"
+  if ! mv "${formula}" "${backup}"; then
+    rmdir "${backup_dir}" 2>/dev/null || true
+    fail "Could not quarantine the broken HashiCorp vagrant.rb."
+  fi
+  info "Temporarily excluding broken hashicorp/tap Formula/vagrant.rb while installing Vault."
+  printf '    $ brew install hashicorp/tap/vault\n' >&2
+  brew install hashicorp/tap/vault
+  status=$?
+  mv "${backup}" "${formula}" 2>/dev/null || warn "Could not restore ${formula}; backup remains at ${backup}"
+  rmdir "${backup_dir}" 2>/dev/null || true
+  [ "${status}" -eq 0 ] || fail "Step failed: install vault"
 }
 
 # ---------------------------------------------------------------------------
@@ -184,9 +394,34 @@ plan_macos() {
   # Vault comes from the HashiCorp tap, not a plain formula.
   if need_tool vault; then
     any=1
-    info "vault: MISSING -> will install from the hashicorp/tap"
+    info "vault: MISSING -> will refresh hashicorp/tap, then install Vault"
     confirm_apply
-    run_step "tap hashicorp/tap"  brew tap hashicorp/tap
+    # Older Homebrew taps can contain formulas that fail to import (for
+    # example, a stale vagrant.rb) before Homebrew reaches Vault. Refresh only
+    # this tap; do not reset Homebrew or modify unrelated taps.
+    if [ "${APPLY}" -eq 1 ]; then
+      # Do not run `brew tap`/`brew tap-list` while planning: Homebrew loads
+      # every formula in the tap and an old broken formula can hang or fail
+      # before LocalClaw has made any change.
+      brew untap hashicorp/tap 2>/dev/null || true
+      tap_log="$(mktemp "${TMPDIR:-/tmp}/localclaw-tap.XXXXXX")" \
+        || fail "Could not create a temporary Homebrew tap log."
+      if ! brew tap hashicorp/tap >"${tap_log}" 2>&1; then
+        if grep -q 'vagrant\.rb' "${tap_log}"; then
+          warn "Ignoring the known broken hashicorp/tap vagrant.rb; Vault will be installed separately from that formula."
+        else
+          cat "${tap_log}" >&2
+          warn "Homebrew could not import hashicorp/tap."
+        fi
+        run_step "update Homebrew" brew update
+        run_step "repair hashicorp/tap" brew tap --repair
+      fi
+      rm -f "${tap_log}"
+    else
+      # Plan mode must remain read-only and must not invoke any tap command.
+      printf '    $ brew tap hashicorp/tap\n' >&2
+      printf '    # If tap import fails, run: brew update && brew tap --repair\n' >&2
+    fi
     run_step "install vault"      brew install hashicorp/tap/vault
   else
     ok "vault: present ($(command -v vault))"
@@ -247,7 +482,8 @@ plan_debian() {
 
   # Distro packages. Note the bin->package mapping: node/npm come from
   # 'nodejs' + 'npm'; everything else maps to a like-named package.
-  local pkgs="" t arch="$(dpkg --print-architecture 2>/dev/null || printf amd64)"
+  local pkgs="" t arch
+  arch="$(dpkg --print-architecture 2>/dev/null || printf amd64)"
   need_tool node && pkgs="${pkgs} nodejs"
   need_tool npm  && pkgs="${pkgs} npm"
   for t in sqlite3 jq git curl tmux age tar; do
@@ -340,6 +576,15 @@ esac
 
 plan_openclaw
 
+printf '\n== Encrypted backups ==\n' >&2
+if [ "${APPLY}" -eq 1 ] && [ -z "${BACKUP_DIR}" ] && [ -t 0 ]; then
+  configure_backup_dir
+elif [ -n "${BACKUP_DIR}" ]; then
+  info "Backup directory already configured: ${BACKUP_DIR}"
+else
+  info "Backups disabled (set BACKUP_DIR during an interactive --apply run)."
+fi
+
 printf '\n== Password-manager selection ==\n' >&2
 case "${PASSWORD_MANAGER}" in
   none) info "No password-manager CLI selected." ;;
@@ -350,9 +595,14 @@ esac
 
 printf '\n' >&2
 if [ "${APPLY}" -eq 1 ]; then
-  ok "Install steps complete. Run 'scripts/doctor' to verify."
+  ok "Install steps complete."
+  info "Next steps:"
+  info "  1. Run './localclaw doctor' to verify the installation."
+  info "  2. Run './localclaw bootstrap' to create your owner-only config and state."
+  info "  3. Review and edit the generated stack.conf and secrets.map."
+  info "  4. Follow docs/INSTALL.md to initialize Vault, then run './localclaw setup' on future machines."
 else
   info "Plan complete. Nothing was changed. Re-run with --apply to install."
-  info "Then run 'scripts/doctor' to verify, and 'scripts/bootstrap' to set up config/state."
+  info "After installation, run './localclaw doctor', then './localclaw bootstrap' to set up config/state."
 fi
 exit 0

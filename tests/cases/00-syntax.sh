@@ -11,6 +11,7 @@ scripts/bootstrap
 scripts/vault-bootstrap
 scripts/doctor
 scripts/vault-start
+scripts/vault-stop
 scripts/work-session
 scripts/backup
 scripts/restore
@@ -42,9 +43,9 @@ done
 # The executable scripts must carry an executable bit (work-session launches
 # vault-start and backup directly, so a lost +x is a real regression).
 for rel in scripts/install scripts/bootstrap scripts/vault-bootstrap \
-           scripts/doctor scripts/vault-start scripts/work-session \
+           scripts/doctor scripts/vault-start scripts/vault-stop scripts/work-session \
            scripts/backup scripts/restore scripts/uninstall scripts/update \
-           scripts/ci-local scripts/release scripts/credentials osls tests/run.sh; do
+           scripts/ci-local scripts/release scripts/credentials localclaw tests/run.sh; do
   f="${REPO_DIR}/${rel}"
   if [ -x "${f}" ]; then t_pass "executable bit set: ${rel}"
   else t_fail "not executable: ${rel}"; fi

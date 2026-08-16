@@ -129,7 +129,7 @@ printf '\n' >&2
 
 printf '== Generated config / tool files (removed) ==\n' >&2
 # Assert every config-side root before doing anything with it.
-assert_removable "${OSLS_CONFIG_DIR}" "config directory"
+assert_removable "${LOCALCLAW_CONFIG_DIR}" "config directory"
 
 # Individually-named generated files (shown explicitly so the operator sees the
 # specific artifacts), then the whole generated config directory.
@@ -140,7 +140,7 @@ info "It never holds unseal shares, tokens, or the private age identity."
 
 # Repo-local rendered leftovers / template backups (defense in depth; normally
 # these live outside the repo, but scripts/clean and older runs may leave them).
-REPO_CONFIG="${OSLS_REPO_DIR}/config"
+REPO_CONFIG="${LOCALCLAW_REPO_DIR}/config"
 
 if [ "${APPLY}" -eq 1 ]; then
   warn "About to remove the generated config directory and repo-local backups."
@@ -148,7 +148,7 @@ if [ "${APPLY}" -eq 1 ]; then
   require_typed_confirmation "UNINSTALL" "Type UNINSTALL to remove generated config/tool files"
 fi
 
-remove_target "generated config directory" "${OSLS_CONFIG_DIR}"
+remove_target "generated config directory" "${LOCALCLAW_CONFIG_DIR}"
 
 # Repo-local rendered config + template backups. Remove file-by-file; never the
 # tracked *.example/*.template/*.sample files.
@@ -166,11 +166,11 @@ fi
 # Preserved-by-default summary.
 # ---------------------------------------------------------------------------
 printf '\n== Preserved (NOT removed) ==\n' >&2
-info "Vault Raft data:     ${OSLS_VAULT_DATA_DIR}"
-info "Vault runtime home:  ${OSLS_VAULT_HOME}"
-info "Work-memory DB:      ${OSLS_MEMORY_DB}"
-info "Runtime logs:        ${OSLS_LOG_DIR}"
-info "Your workspace:      ${OSLS_WORKSPACE_DIR}   (never removed)"
+info "Vault Raft data:     ${LOCALCLAW_VAULT_DATA_DIR}"
+info "Vault runtime home:  ${LOCALCLAW_VAULT_HOME}"
+info "Work-memory DB:      ${LOCALCLAW_MEMORY_DB}"
+info "Runtime logs:        ${LOCALCLAW_LOG_DIR}"
+info "Your workspace:      ${LOCALCLAW_WORKSPACE_DIR}   (never removed)"
 if [ -n "${BACKUP_DIR}" ]; then
   info "Your backups:        ${BACKUP_DIR}   (never removed)"
 else
@@ -184,7 +184,7 @@ info "Package-manager software (vault, age, sqlite3, node, ...) is left untouche
 # ---------------------------------------------------------------------------
 if [ "${PURGE_DATA}" -eq 1 ]; then
   printf '\n== Runtime state (DELETE requested via --purge-data) ==\n' >&2
-  assert_removable "${OSLS_STATE_DIR}" "state directory"
+  assert_removable "${LOCALCLAW_STATE_DIR}" "state directory"
 
   # Never stop a process we did not start: if a local Vault is running, refuse
   # and ask the operator to stop it first.
@@ -201,11 +201,11 @@ if [ "${PURGE_DATA}" -eq 1 ]; then
   warn "Make sure you have a current, restorable backup first."
   require_typed_confirmation "DELETE DATA" "Type 'DELETE DATA' to delete local runtime state"
 
-  remove_target "Vault Raft data"    "${OSLS_VAULT_DATA_DIR}"
-  remove_target "Vault runtime home" "${OSLS_VAULT_HOME}"
-  remove_target "work-memory DB dir" "$(dirname "${OSLS_MEMORY_DB}")"
-  remove_target "runtime logs"       "${OSLS_LOG_DIR}"
-  remove_target "runtime state directory" "${OSLS_STATE_DIR}"
+  remove_target "Vault Raft data"    "${LOCALCLAW_VAULT_DATA_DIR}"
+  remove_target "Vault runtime home" "${LOCALCLAW_VAULT_HOME}"
+  remove_target "work-memory DB dir" "$(dirname "${LOCALCLAW_MEMORY_DB}")"
+  remove_target "runtime logs"       "${LOCALCLAW_LOG_DIR}"
+  remove_target "runtime state directory" "${LOCALCLAW_STATE_DIR}"
 else
   printf '\n' >&2
   info "Runtime state (Vault data, work-memory DB, logs) is PRESERVED."
