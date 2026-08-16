@@ -344,7 +344,7 @@ if [ "${DRY_RUN}" -eq 1 ]; then
   for tool in "${VAULT_BIN}" jq; do
     have "${tool}" || warn "missing tool: ${tool}"
   done
-  have "${OPENCLAW_BIN}" || warn "missing: ${OPENCLAW_BIN} (install OpenClaw; see docs/INSTALL.md)"
+  have "${OPENCLAW_BIN}" || warn "missing: ${OPENCLAW_BIN} (install OpenClaw; see docs/QuickStartInstall.md)"
   [ -x "${VAULT_START}" ]   || warn "not executable: ${VAULT_START}"
   [ -x "${BACKUP_SCRIPT}" ] || warn "not executable: ${BACKUP_SCRIPT}"
 
@@ -481,7 +481,7 @@ unset VAULT_TOKEN LOCAL_VAULT_TOKEN
 # Required binaries for a real run.
 have "${VAULT_BIN}"    || fail "vault not found: ${VAULT_BIN}. Run scripts/install."
 have jq                || fail "jq not found. Run scripts/install."
-have "${OPENCLAW_BIN}" || fail "openclaw not found: ${OPENCLAW_BIN}. See docs/INSTALL.md (install the extended-stable channel)."
+have "${OPENCLAW_BIN}" || fail "openclaw not found: ${OPENCLAW_BIN}. See docs/QuickStartInstall.md (install the extended-stable channel)."
 [ -x "${VAULT_START}" ]   || fail "Missing/inaccessible: ${VAULT_START}"
 [ -x "${BACKUP_SCRIPT}" ] || fail "Missing/inaccessible: ${BACKUP_SCRIPT}"
 [ -r "${LOCALCLAW_VAULT_HCL}" ] || fail "Rendered vault.hcl not found. Run scripts/bootstrap first."

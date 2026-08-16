@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   canonical GPLv3 text, a License section in `README.md`, and license notices in
   `docs/CONTRIBUTING.md`; resolved the license item in
   `docs/MAINTAINER-DECISIONS.md`. No per-file copyright headers are used.
-- Prominent official OpenClaw references in `README.md` and `docs/INSTALL.md`
+- Prominent official OpenClaw references in `README.md` and `docs/QuickStartInstall.md`
   (<https://openclaw.ai/>, <https://docs.openclaw.ai/install>, and the official
   installer <https://openclaw.ai/install.sh>), while keeping the project rule to
   review any downloaded installer and never curl-pipe it into a shell.
@@ -180,7 +180,7 @@ and workspace templates only — no services are started and nothing is
 installed.
 
 ### Added
-- Project documentation: `README.md`; `docs/INSTALL.md`,
+- Project documentation: `README.md`; `docs/QuickStartInstall.md`,
   `docs/CONFIGURATION.md`, `docs/SECURITY.md`, `docs/BACKUP-RESTORE.md`,
   `docs/OPERATIONS.md`, `docs/CONTRIBUTING.md`, `docs/ARCHITECTURE.md`
   (with Mermaid diagrams), and `docs/MAINTAINER-DECISIONS.md`.

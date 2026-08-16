@@ -1,4 +1,4 @@
-# Installation
+# Quick Start Installation
 
 > **Start here if you want the full guided path:**
 > [`MANUAL-STEP-INSTALLATION.md`](MANUAL-STEP-INSTALLATION.md) walks from a fresh clone through Vault,

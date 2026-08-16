@@ -55,7 +55,7 @@ read-only doctor, and executes the regression and disposable E2E tests. Use
 `./localclaw setup --apply-update` only after reviewing the update check.
 
 Environment overrides use the `LOCALCLAW_` prefix. Use the LocalClaw names
-documented in [`docs/INSTALL.md`](docs/INSTALL.md).
+documented in [`docs/QuickStartInstall.md`](docs/QuickStartInstall.md).
 
 ## Secret backend choices
 
@@ -199,7 +199,7 @@ consistent.
 
 ## Quick start
 
-> Read [`docs/INSTALL.md`](docs/INSTALL.md) first. Restore/disaster-recovery
+> Read [`docs/QuickStartInstall.md`](docs/QuickStartInstall.md) first. Restore/disaster-recovery
 > stays manual by design (see [`docs/BACKUP-RESTORE.md`](docs/BACKUP-RESTORE.md)).
 
 For a complete, plain-language walkthrough—including the commands an automated
@@ -207,7 +207,7 @@ installer should run and the actions it must never automate—start with
 [`docs/MANUAL-STEP-INSTALLATION.md`](docs/MANUAL-STEP-INSTALLATION.md).
 
 1. **Install prerequisites** for your OS: `scripts/install` (plan only) then
-   `scripts/install --apply` — or follow [`docs/INSTALL.md`](docs/INSTALL.md).
+   `scripts/install --apply` — or follow [`docs/QuickStartInstall.md`](docs/QuickStartInstall.md).
 2. **Preflight:** `make doctor` — confirm tools, permissions, and disk
    encryption look right.
 3. **Configure:** `scripts/bootstrap` renders config, creates owner-only state,
@@ -287,7 +287,7 @@ Day-to-day commands and troubleshooting live in
 │   ├── AGENTS.md SOUL.md USER.md IDENTITY.md TOOLS.md HEARTBEAT.md
 │   └── memory/                   Empty by design (.gitkeep).
 └── docs/
-    ├── INSTALL.md CONFIGURATION.md SECURITY.md BACKUP-RESTORE.md
+    ├── QuickStartInstall.md CONFIGURATION.md SECURITY.md BACKUP-RESTORE.md
     ├── OPERATIONS.md ARCHITECTURE.md CONTRIBUTING.md
     ├── CI-CD.md VERSIONING.md     Pipeline, local CI, SemVer, and release flow.
     └── MAINTAINER-DECISIONS.md   Checklist to complete before publishing.

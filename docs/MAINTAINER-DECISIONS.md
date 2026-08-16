@@ -48,7 +48,7 @@ Each item lists what to decide, where it is referenced, and how to record it.
 - **Why it matters:** the scripts target Bash 3.2 and POSIX-ish tooling, but the
   Vault/age/apt specifics vary by release.
 - **Where referenced:** `README.md` (Supported platforms),
-  `docs/INSTALL.md`.
+  `docs/QuickStartInstall.md`.
 - **Record by:** updating the supported-platform notes when new OS releases are
   validated.
 
@@ -60,10 +60,10 @@ Each item lists what to decide, where it is referenced, and how to record it.
   `vault`, `openclaw`, `age`, `sqlite3`, Bash.
 - **Why it matters:** Vault storage/API and OpenClaw's config schema can change
   between releases; the minimal `openclaw.json` is deliberately non-authoritative.
-- **Where referenced:** `README.md` (Prerequisites), `docs/INSTALL.md`,
+- **Where referenced:** `README.md` (Prerequisites), `docs/QuickStartInstall.md`,
   `config/openclaw.json.example` (schema caveat).
 - **Record by:** extending the compatibility matrix (tool → tested/min version)
-  in the README or INSTALL, and bumping `VERSION` per SemVer when it changes.
+  in the README or Quick Start Install doc, and bumping `VERSION` per SemVer when it changes.
 
   | Tool | Tested version | Minimum |
   | --- | --- | --- |

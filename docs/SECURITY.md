@@ -49,7 +49,7 @@ boundary listens on a routable address. The only data that leaves the machine is
 - Vault runs in the foreground (`scripts/vault-start` / the session launcher) and
   is attached to your terminal. Ctrl-C stops it.
 - No launchd agent, systemd unit, cron job, or timer is installed. If your OS
-  package created a Vault service, [`INSTALL.md`](INSTALL.md) tells you to disable
+  package created a Vault service, [`QuickStartInstall.md`](QuickStartInstall.md) tells you to disable
   it.
 - Backups happen only during guarded cleanup of a real interactive session —
   there is no scheduler.

@@ -13,4 +13,4 @@ CI.
 ## Related
 
 - [`CI-CD.md`](CI-CD.md) for the broader provider-neutral CI checklist.
-- [`INSTALL.md`](INSTALL.md) for the guided local installation flow.
+- [`QuickStartInstall.md`](QuickStartInstall.md) for the guided local installation flow.
