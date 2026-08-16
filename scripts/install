@@ -623,7 +623,7 @@ if [ "${APPLY}" -eq 1 ]; then
   info "  1. Run './localclaw doctor' to verify the installation."
   info "  2. Run './localclaw bootstrap' to create your owner-only config and state."
   info "  3. Review and edit the generated stack.conf and secrets.map."
-  info "  4. Follow docs/QuickStartInstall.md to initialize Vault, then run './localclaw setup' on future machines."
+  info "  4. Follow docs/QUICKSTARTINSTALLATION.md to initialize Vault, then run './localclaw setup' on future machines."
 else
   info "Plan complete. Nothing was changed. Re-run with --apply to install."
   info "After installation, run './localclaw doctor', then './localclaw bootstrap' to set up config/state."

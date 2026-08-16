@@ -66,7 +66,7 @@ it installs missing supported prerequisites and OpenClaw, but does not start
 services or create credentials.
 
 If you prefer to install manually, follow the platform-specific steps below.
-`QuickStartInstall.md` now stays focused on the prerequisite matrix and installer
+`QUICKSTARTINSTALLATION.md` now stays focused on the prerequisite matrix and installer
 behavior; this file carries the actual install commands.
 
 ### macOS (Homebrew)
