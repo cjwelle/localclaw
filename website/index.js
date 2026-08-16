@@ -6,6 +6,9 @@ const page = `<!doctype html>
   <meta name="description" content="LocalClaw is a secure, self-hosted OpenClaw workstation for people who want their AI close, private, and under their control. Vault is optional when you already use a local vault, and the site supports Bitwarden, 1Password, and LastPass-backed flows. The first OpenClaw message should match the secret mode you chose.">
   <meta name="theme-color" content="#07121f">
   <title>LocalClaw - Coming soon</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.svg" sizes="any" type="image/svg+xml">
+  <link rel="shortcut icon" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
