@@ -57,6 +57,20 @@ read-only doctor, and executes the regression and disposable E2E tests. Use
 Environment overrides use the `LOCALCLAW_` prefix. Use the LocalClaw names
 documented in [`docs/INSTALL.md`](docs/INSTALL.md).
 
+> **Active development:** LocalClaw is still being built and refined. The
+> project is open for feedback, bug reports, documentation suggestions, and
+> security-minded review. Please open an issue or discussion on GitHub before
+> relying on it for a critical workstation or production workflow.
+
+> **AI-built · human-created · human-validated.** AI assists with implementation
+> and iteration, while the project direction, security decisions, code review,
+> testing, and operational validation remain human-led.
+
+> **Password-manager support status:** Bitwarden is the only password-manager
+> integration tested by the project so far. 1Password and LastPass are planned
+> for future testing and validation; they may work now, but should be treated
+> as unvalidated and experimental until tested.
+
 ---
 
 ## Why this exists
