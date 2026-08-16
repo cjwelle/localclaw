@@ -156,15 +156,19 @@ case "${os}" in
 esac
 
 head2 "Local Vault (read-only probe)"
-if port_is_listening "${VAULT_PORT}"; then
-  if vault_is_initialized; then pass "Vault initialized"; else note "Vault not initialized (run scripts/vault-bootstrap init)"; fi
-  case "$(vault_is_sealed; echo $?)" in
-    0) note "Vault is sealed (unseal during scripts/work-session)" ;;
-    1) pass "Vault is unsealed" ;;
-    *) note "could not read Vault seal status" ;;
-  esac
+if work_session_is_running; then
+  if port_is_listening "${VAULT_PORT}"; then
+    if vault_is_initialized; then pass "Vault initialized"; else note "Vault not initialized (run scripts/vault-bootstrap init)"; fi
+    case "$(vault_is_sealed; echo $?)" in
+      0) note "Vault is sealed (unseal during scripts/work-session)" ;;
+      1) pass "Vault is unsealed" ;;
+      *) note "could not read Vault seal status" ;;
+    esac
+  else
+    fault "work-session is running but Vault is not listening on port ${VAULT_PORT}"
+  fi
 else
-  note "Vault is not running on port ${VAULT_PORT} (start with scripts/vault-start)"
+  pass "Local Vault probe skipped (no work-session process detected)"
 fi
 
 head2 "Summary"

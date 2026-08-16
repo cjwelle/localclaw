@@ -481,3 +481,14 @@ vault_require_unsealed() {
     fail "Local Vault is sealed. Unseal it (or run scripts/work-session) first."
   fi
 }
+
+# Return success when a foreground work-session launcher is running. Used by
+# read-only health checks to decide whether the local Vault probe is relevant.
+work_session_is_running() {
+  local pattern='(^|[[:space:]/])scripts/work-session([[:space:]]|$)'
+  if have pgrep; then
+    pgrep -f "${pattern}" >/dev/null 2>&1
+  else
+    ps -axww -o command= 2>/dev/null | grep -Eq "${pattern}"
+  fi
+}
