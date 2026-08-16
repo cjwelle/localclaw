@@ -71,6 +71,7 @@ AGE_KEYGEN_BIN="age-keygen"
 # retrieval. The reference is provider-specific and is never secret by itself.
 CREDENTIAL_PROVIDER="none"
 BACKUP_IDENTITY_REF=""
+VAULT_UNSEAL_REF=""
 # Generic backup destination. Deliberately empty: the operator must choose a
 # directory (local or cloud-synced) during bootstrap. No tenant is baked in.
 BACKUP_DIR=""
@@ -171,6 +172,7 @@ load_stack_config() {
       AGE_KEYGEN_BIN)      AGE_KEYGEN_BIN="${value}" ;;
       CREDENTIAL_PROVIDER) CREDENTIAL_PROVIDER="${value}" ;;
       BACKUP_IDENTITY_REF) BACKUP_IDENTITY_REF="${value}" ;;
+      VAULT_UNSEAL_REF)    VAULT_UNSEAL_REF="${value}" ;;
       BACKUP_DIR)          BACKUP_DIR="${value}" ;;
       VAULT_KEY_SHARES)    VAULT_KEY_SHARES="${value}" ;;
       VAULT_KEY_THRESHOLD) VAULT_KEY_THRESHOLD="${value}" ;;

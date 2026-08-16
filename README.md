@@ -69,7 +69,9 @@ documented in [`docs/INSTALL.md`](docs/INSTALL.md).
 > **Password-manager support status:** Bitwarden is the only password-manager
 > integration tested by the project so far. 1Password and LastPass are planned
 > for future testing and validation; they may work now, but should be treated
-> as unvalidated and experimental until tested.
+> as unvalidated and experimental until tested. `work-session` can use the
+> configured provider to read Vault unseal shares when `VAULT_UNSEAL_REF` is
+> set.
 
 ---
 
@@ -201,7 +203,10 @@ installer should run and the actions it must never automate—start with
 7. **Work:** `make work-session` (or `scripts/work-session`) starts a foreground
    session — it owns Vault and the loopback gateway, opens the TUI, and on a
    clean exit runs guarded cleanup (encrypted backup, tokens revoked, Vault
-   stopped). Validate first with `scripts/work-session --dry-run`.
+   stopped). If you set `VAULT_UNSEAL_REF`, it will unlock the configured
+   password manager, read the unseal shares, and unseal Vault automatically;
+   otherwise it falls back to hidden manual share prompts. Validate first with
+   `scripts/work-session --dry-run`.
 8. **Back up / restore** as needed — the exit-time backup is automatic; take an
    ad-hoc one with `scripts/backup`. Inspect or restore a backup with
    `scripts/restore` (read-only by default; the destructive snapshot restore is

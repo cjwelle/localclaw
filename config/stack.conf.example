@@ -35,6 +35,12 @@ AGE_KEYGEN_BIN=age-keygen
 CREDENTIAL_PROVIDER=none
 BACKUP_IDENTITY_REF=
 
+# Optional Vault-unseal note reference. If set alongside CREDENTIAL_PROVIDER,
+# scripts/work-session will unlock that provider, read the note, and feed the
+# recovered shares to `vault operator unseal`. Store one unseal share per line
+# in the referenced secure note.
+VAULT_UNSEAL_REF=
+
 # --- Vault initialization guidance (used by vault-bootstrap init) ----------
 VAULT_KEY_SHARES=5
 VAULT_KEY_THRESHOLD=3

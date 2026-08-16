@@ -395,6 +395,12 @@ confirmed it works, revoke the root token with
 `scripts/vault-bootstrap revoke-root` and delete it from your password
 manager — keep the unseal shares.
 
+If you want `scripts/work-session` to read the unseal shares automatically,
+store them in a secure note in the password manager configured by
+`CREDENTIAL_PROVIDER`, then set `VAULT_UNSEAL_REF` in `stack.conf` to that note
+reference. Put one unseal share per line. If `VAULT_UNSEAL_REF` is unset, the
+launcher falls back to the original hidden share prompts.
+
 If you are using a password manager, store the recovery material as separate
 items so you do not paste the wrong value later:
 

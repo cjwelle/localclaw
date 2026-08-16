@@ -79,6 +79,9 @@ esac
 if [ "${CREDENTIAL_PROVIDER}" != none ] && [ -z "${BACKUP_IDENTITY_REF}" ]; then
   fault "BACKUP_IDENTITY_REF is empty for configured password-manager provider"
 fi
+if [ "${CREDENTIAL_PROVIDER}" != none ] && [ -z "${VAULT_UNSEAL_REF}" ]; then
+  note "VAULT_UNSEAL_REF is empty; work-session will fall back to manual unseal-share prompts"
+fi
 
 if [ -n "${BACKUP_DIR}" ]; then
   if ( validate_backup_dir "${BACKUP_DIR}" ) 2>/dev/null; then
