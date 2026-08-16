@@ -33,6 +33,7 @@ body{background:radial-gradient(circle at 50% -12%,#172f46 0%,#0b1727 42%,#050b1
 .project-link{min-height:122px;padding:20px 18px;display:flex;flex-direction:column;gap:12px;position:relative;text-decoration:none;color:#eef5f3;background:linear-gradient(145deg,#10283a,#0b1b2b);border:1px solid #284957;border-radius:12px;transition:transform .2s,border-color .2s,box-shadow .2s}
 .project-link:hover{transform:translateY(-4px);border-color:#78f0d1;box-shadow:0 14px 30px #0005}
 .project-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:#1d4251;color:#78f0d1;font:700 12px/1 "Space Grotesk",sans-serif;letter-spacing:-.04em}
+.project-mark svg{display:block;width:18px;height:18px}
 .project-link b{display:block;font:600 15px "Space Grotesk",sans-serif}
 .project-link small{display:block;margin-top:3px;color:#91aab2;font-size:11px;line-height:1.3}
 .project-arrow{position:absolute;right:17px;top:20px;color:#78f0d1;font-size:16px}
@@ -40,9 +41,9 @@ body{background:radial-gradient(circle at 50% -12%,#172f46 0%,#0b1727 42%,#050b1
 .project-age .project-mark{background:#193d39;color:#8be7bf;font-size:10px}
 .project-cloudflare .project-mark{background:#4a2e21;color:#ff9b63}
 .project-github .project-mark{background:#303743;color:#e2edf5}
-.project-bitwarden .project-mark{background:#184c5c;color:#72d6ff}
-.project-1password .project-mark{background:#2f2d54;color:#efe6ff}
-.project-lastpass .project-mark{background:#4b2430;color:#ffd0d8}
+.project-bitwarden .project-mark{background:#233d59;color:#8fd1ff}
+.project-onepassword .project-mark{background:#2f234c;color:#d2b4ff}
+.project-lastpass .project-mark{background:#4a2331;color:#ffb2c1}
 @media(max-width:900px){.built-on-heading{grid-template-columns:1fr 1fr}.built-on-heading p{grid-column:2}.built-on-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:540px){.built-on{padding:72px 0 10px}.built-on-heading{display:block}.built-on-heading h2{margin:18px 0}.built-on-heading p{max-width:450px}.built-on-grid{grid-template-columns:repeat(2,1fr)}.project-link{min-height:112px;padding:16px 14px}.origin-note{width:100%;margin-left:0;text-align:center;white-space:normal}}
 .button-outline{color:#eef5f3;border-color:#6f929c}

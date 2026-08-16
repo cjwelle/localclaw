@@ -3,7 +3,7 @@ const page = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="LocalClaw is a secure, self-hosted OpenClaw workstation with three modes: vault-only, vault plus password manager, or password-manager-only.">
+  <meta name="description" content="LocalClaw is a secure, self-hosted OpenClaw workstation for people who want their AI close, private, and under their control. Vault is optional when you already use a local vault, and the site supports Bitwarden, 1Password, and LastPass-backed flows.">
   <meta name="theme-color" content="#07121f">
   <title>LocalClaw - Coming soon</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -42,7 +42,9 @@ const page = `<!doctype html>
     .icon-cloudflare{color:#ff8d4d}
     .icon-github{color:#dce5ee}
     .icon-age{color:#7be4bc}
-    .icon-bitwarden,.icon-onepassword,.icon-lastpass{font-size:9px;font-weight:700;letter-spacing:-.05em}
+    .icon-bitwarden{color:#8fd1ff}
+    .icon-onepassword{color:#d2b4ff}
+    .icon-lastpass{color:#ffb2c1}
     .terminal{position:relative;background:linear-gradient(180deg,#0d1f31,#0b1724);border-radius:18px;padding:16px;box-shadow:0 25px 60px rgba(8,18,30,.18);transform:rotate(1.8deg)}
     .terminal:before{content:"";position:absolute;inset:-1px;border-radius:18px;padding:1px;background:linear-gradient(145deg,rgba(124,244,210,.6),rgba(243,202,99,.22),rgba(40,184,230,.28));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
     .chrome{display:flex;align-items:center;gap:8px;padding:2px 2px 14px;color:#8ea1ab}
@@ -81,15 +83,15 @@ const page = `<!doctype html>
       <div>
         <div class="eyebrow"><span class="pulse"></span> Coming soon · local first</div>
         <h1>Coming soon.<br><em>Your AI.</em><br>Your machine.</h1>
-        <p class="lede">LocalClaw is a secure, self-hosted OpenClaw workstation for people who want their agent, secrets, and working context to stay close, inspectable, and under their control. Vault is optional, and the stack supports vault-only, vault + password manager, or password-manager-only.</p>
+        <p class="lede">LocalClaw is a secure, self-hosted OpenClaw workstation for people who want their agent, secrets, and working context to stay close, inspectable, and under their control. Vault is optional when you already use a local vault, and password-manager-backed flows support Bitwarden, 1Password, and LastPass.</p>
         <div class="actions">
           <a class="button" href="https://github.com/cjwelle/localclaw">Read the source <span aria-hidden="true">↗</span></a>
           <a class="link" href="https://github.com/cjwelle/localclaw"><span>Watch on GitHub</span></a>
         </div>
         <div class="chips">
           <span class="chip">Loopback-first</span>
-          <span class="chip">Foreground-only</span>
-          <span class="chip">Secrets stay local</span>
+          <span class="chip">Vault optional</span>
+          <span class="chip">Bitwarden / 1Password / LastPass</span>
         </div>
         <div class="stack-strip" aria-label="Built on services">
           <span class="label">Built on</span>
@@ -98,9 +100,9 @@ const page = `<!doctype html>
           <span class="brand-pill"><span class="service-icon icon-cloudflare" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M8.2 16.7h11.1a3.2 3.2 0 0 0 0-6.4 4.7 4.7 0 0 0-9.2-.9 3.8 3.8 0 0 0-1.9 7.3Z" fill="currentColor"/><path d="M7 16.7h13" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></span> Cloudflare</span>
           <span class="brand-pill"><span class="service-icon icon-github" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.8a9.2 9.2 0 0 0-2.9 17.9c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.3-1.2-3.3-1.2-.4-1-.9-1.2-.9-1.2-.8-.6.1-.6.1-.6.9.1 1.3.9 1.3.9.8 1.3 2 .9 2.5.7.1-.6.3-.9.5-1.1-2.2-.2-4.6-1.1-4.6-4.8 0-1.1.4-2 .9-2.7-.1-.2-.4-1.1.1-2.3 0 0 .8-.3 2.8 1a9.9 9.9 0 0 1 5.1 0c2-1.3 2.8-1 2.8-1 .5 1.2.2 2.1.1 2.3.6.7.9 1.6.9 2.7 0 3.7-2.4 4.5-4.6 4.8.3.3.5.8.5 1.6v2.4c0 .3.2.6.7.5A9.2 9.2 0 0 0 12 2.8Z" fill="currentColor"/></svg></span> GitHub</span>
           <span class="brand-pill"><span class="service-icon icon-age" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7.5 18.2 15.9 5.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8.8 7.3h5.2L12.1 12h2.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.9 18.2h2.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span> age</span>
-          <span class="brand-pill"><span class="service-icon icon-bitwarden" aria-hidden="true">BW</span><span><b>Bitwarden</b><small>Password manager</small></span></span>
-          <span class="brand-pill"><span class="service-icon icon-onepassword" aria-hidden="true">1P</span><span><b>1Password</b><small>Password manager</small></span></span>
-          <span class="brand-pill"><span class="service-icon icon-lastpass" aria-hidden="true">LP</span><span><b>LastPass</b><small>Password manager</small></span></span>
+          <span class="brand-pill"><span class="service-icon icon-bitwarden" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.6 18.8 5v6.3c0 4.3-2.8 7.1-6.8 8.3-4-1.2-6.8-4-6.8-8.3V5L12 2.6Z" fill="currentColor"/><path d="M9.1 9.5h5.8l-1.4 5.4H10.5L9.1 9.5Z" fill="#0b1523" opacity=".85"/></svg></span> Bitwarden</span>
+          <span class="brand-pill"><span class="service-icon icon-onepassword" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="11" r="3.2" stroke="currentColor" stroke-width="1.8"/><path d="M12 11h5l1.5 1.5L16.8 14H15l-1 1-1.2-1.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span> 1Password</span>
+          <span class="brand-pill"><span class="service-icon icon-lastpass" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="4" height="12" rx="2" fill="currentColor"/><rect x="9.5" y="9" width="4" height="9" rx="2" fill="currentColor"/><rect x="16" y="7.5" width="4" height="10.5" rx="2" fill="currentColor"/></svg></span> LastPass</span>
         </div>
       </div>
       <div class="terminal" aria-label="LocalClaw preview">
@@ -112,11 +114,11 @@ const page = `<!doctype html>
         </div>
         <div class="body">
           <div class="line muted">$ localclaw setup</div>
-          <div class="line good"><span>✓</span> Vault optional, depending on the mode</div>
-          <div class="line good"><span>✓</span> Choose vault-only, vault + password manager, or password-manager-only</div>
+          <div class="line good"><span>✓</span> Vault optional when you already use a local vault</div>
+          <div class="line good"><span>✓</span> Secrets stay on this machine</div>
           <div class="line good"><span>✓</span> Gateway bound to loopback</div>
-          <div class="line muted" style="margin-top:12px">More to come: the install flow, the safety model, and the day-to-day operator experience.</div>
-          <div class="footer-note">Private by design · self-hosted by choice · three supported modes</div>
+          <div class="line muted" style="margin-top:12px">More to come: the install flow, the safety model, and the day-to-day operator experience. Supported password managers: Bitwarden, 1Password, and LastPass.</div>
+          <div class="footer-note">Private by design · self-hosted by choice · built to be inspected · three secret modes</div>
         </div>
       </div>
     </section>
