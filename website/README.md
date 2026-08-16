@@ -2,6 +2,10 @@
 
 The canonical source repository is [github.com/cjwelle/localclaw](https://github.com/cjwelle/localclaw).
 
+The site copy mirrors the project docs: LocalClaw supports three session modes
+and Vault is optional to preinstall because the guided installer can provision
+it for Vault-backed sessions.
+
 A lightweight, dependency-free one-page site for [localclaw.bot](https://localclaw.bot).
 
 ## Recommended hosting: Cloudflare Pages
